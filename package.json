@@ -1,0 +1,26 @@
+{
+  "name": "xzo",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./dom": "./src/dom/index.ts",
+    "./jsx-runtime": "./src/jsx-runtime.ts",
+    "./jsx-dev-runtime": "./src/jsx-dev-runtime.ts"
+  },
+  "scripts": {
+    "dev": "node ./node_modules/vite/bin/vite.js",
+    "build": "node ./node_modules/vite/bin/vite.js build",
+    "typecheck": "bunx --bun tsc --noEmit"
+  },
+  "dependencies": {
+    "@preact/signals-core": "^1.14.1",
+    "stylis": "^4.3.6"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@rolldown/plugin-babel": "^0.2.2",
+    "babel-plugin-jsx-dom-expressions": "^0.40.6",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.6"
+  }
+}
