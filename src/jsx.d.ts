@@ -6,7 +6,6 @@ declare global {
    *  declare global { interface IntrinsicElementsRegistry { 'my-el': PropsOf<MyContract> } }
    */
   interface IntrinsicElementsRegistry {}
-
   namespace JSX {
     type Element = Node
 

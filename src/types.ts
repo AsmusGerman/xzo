@@ -18,7 +18,6 @@ export type EventsOf<Contract> = {
   [K in keyof Contract as Contract[K] extends ComponentEvent<unknown> ? K : never]:
     Contract[K] extends ComponentEvent<infer T> ? T : never
 }
-
 // Registry interfaces — augmented by lib.define()/lib.root() and lib.service() respectively
 // via `declare module 'xzo' { interface ComponentRegistry { ... } }` in app/library code
 export interface ComponentRegistry {}
