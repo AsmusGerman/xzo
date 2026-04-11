@@ -2,6 +2,20 @@ import type { ReadonlySignal, Signal } from '@preact/signals-core'
 import type { Context } from './core/context'
 
 export type Key = string | number
+
+// Registry interfaces — augmented by lib.define()/lib.root() and lib.service() respectively
+// via `declare module 'xzo' { interface ComponentRegistry { ... } }` in app/library code
+export interface ComponentRegistry {}
+export interface ServiceRegistry {}
+
+// ActivePageScope is augmented by @xzo/router when installed
+export type ActivePageScope = Record<string, unknown> | undefined
+
+export type Reg = {
+  components: ComponentRegistry
+  services: ServiceRegistry
+  page: ActivePageScope
+}
 export type AnySignal<T = unknown> = Signal<T> | ReadonlySignal<T>
 
 export type EachOptions = {

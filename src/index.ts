@@ -1,15 +1,23 @@
-import { batch, computed, effect, signal, untracked } from '@preact/signals-core'
+import { batch, computed, signal, untracked } from '@preact/signals-core'
 import { lib } from './core/lib'
 
 export type { Context } from './core/context'
+export { registerContextExtension } from './core/context'
 export type {
   AnySignal,
   AsyncSource,
+  ComponentFactory,
+  ComponentRegistry,
+  ComponentResult,
   EachOptions,
   EachSource,
+  Reg,
+  ServiceRegistry,
   Unwrap,
 } from './types'
-export { lib, signal, computed, effect, batch }
+export type { Lib } from './core/lib'
+export { addCleanup, getOwner } from './core/scheduler'
+export { lib, signal, computed, batch }
 export const untrack = untracked
 
 export function css(strings: TemplateStringsArray, ...values: unknown[]): string {
