@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["src/**/*", "../../src/jsx.d.ts", "../../src/stylis.d.ts"],
+  "compilerOptions": {
+    "paths": {
+      "xzo": ["../../src/index.ts"]
+    }
+  }
+}
