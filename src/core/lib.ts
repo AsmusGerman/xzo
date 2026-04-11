@@ -24,6 +24,8 @@ const definitions = new Map<string, ComponentFactory>()
 const rootDefinitions = new Set<string>()
 const mountedRoots = new Map<string, Element>()
 const mounted = new WeakMap<Element, MountedInstance>()
+// componentTable caches injection results (per-requesting-element), GC-safe
+const componentTable = new WeakMap<Element, Map<string, unknown>>()
 const services = new Map<string, Record<string, unknown> | ServiceFactory>()
 let observer: MutationObserver | null = null
 
@@ -204,6 +206,59 @@ export function getService(name?: string): Record<string, unknown> {
   return existing
 }
 
+export function walkComponentProviders(id: string, host: Element): unknown {
+  // Check per-element cache first
+  const cache = componentTable.get(host)
+  if (cache && cache.has(id)) {
+    return cache.get(id)
+  }
+
+  let path: string[] | undefined
+  if (__DEV__) {
+    path = []
+  }
+
+  let cursor: Element | null = host.parentElement
+  while (cursor) {
+    const instance = mounted.get(cursor)
+    if (instance) {
+      if (path) {
+        path.push(instance.owner.name)
+      }
+      // Match by component NAME — reg.components.app returns the providers of
+      // the ancestor component registered as "app", not a provider key named "app"
+      if (instance.owner.name === id) {
+        const value = instance.owner.providers
+        // Cache result
+        const c = componentTable.get(host) ?? new Map<string, unknown>()
+        c.set(id, value)
+        componentTable.set(host, c)
+        return value
+      }
+    }
+    cursor = cursor.parentElement
+  }
+
+  if (__DEV__) {
+    const pathStr = path && path.length ? path.join(' → ') : 'none'
+    throw new Error(
+      `[xzo] InjectNotFoundError — "${id}" not found in ancestor scopes\n` +
+      `  ✘ Searched: ${pathStr}\n` +
+      `  ✦ Hint: did you mean ctx.inject(reg => reg.services.${id})?`
+    )
+  }
+
+  return undefined
+}
+
+export function getAllServiceIds(): string[] {
+  return Array.from(services.keys())
+}
+
+export function hasService(name: string): boolean {
+  return services.has(name)
+}
+
 export function init(rootNode: Document | Element = document): void {
   initServices()
   scanSubtree(rootNode)
@@ -230,6 +285,15 @@ export function init(rootNode: Document | Element = document): void {
   observer.observe(target, { childList: true, subtree: true })
 }
 
+export interface Lib {
+  define(name: string, factory: ComponentFactory): void
+  root(name: string, factory: ComponentFactory): void
+  service(name: string, factory: () => Record<string, unknown>): void
+  init(rootNode?: Document | Element): void
+  each: typeof each
+  async: typeof createAsyncSource
+}
+
 export const lib = {
   define,
   root,
@@ -237,4 +301,4 @@ export const lib = {
   init,
   each,
   async: createAsyncSource,
-}
+} as unknown as Lib
