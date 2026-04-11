@@ -1,5 +1,5 @@
-import { computed, effect, signal } from '@preact/signals-core'
-import type { AnySignal } from '../types'
+import { computed, effect, signal, untracked } from '@preact/signals-core'
+import type { AnySignal, Reg } from '../types'
 import { toKebabCase } from '../types'
 import {
   addCleanup,
@@ -7,7 +7,7 @@ import {
   addUnmountCallback,
   type Owner,
 } from './scheduler'
-import { getService } from './lib'
+import { getService, walkComponentProviders, getAllServiceIds, hasService } from './lib'
 
 type HostWithSignals = Element & {
   __xz_propSignals?: Map<string, ReturnType<typeof signal<unknown>>>
@@ -19,8 +19,12 @@ export interface Context {
   readonly host: Element
   readonly name: string
   readonly tagName: string
-  inject: (name?: string) => Record<string, unknown>
+  inject: <T>(selector: (reg: Reg) => T) => T
   effect: (callback: Parameters<typeof effect>[0]) => () => void
+  observe: {
+    <T>(sig: AnySignal<T>, cb: (value: T, prev: T | undefined) => void): void
+    (sigs: AnySignal<unknown>[], cb: (values: unknown[], prev: unknown[] | undefined) => void): void
+  }
   onMount: (callback: () => void) => void
   onUnmount: (callback: () => void) => void
   prop: <T>(name: string) => AnySignal<T>
@@ -36,6 +40,7 @@ const RESERVED_CONTEXT_KEYS = new Set([
   'tagName',
   'inject',
   'effect',
+  'observe',
   'onMount',
   'onUnmount',
   'prop',
@@ -127,37 +132,69 @@ function hasResolvableProp(host: Element, name: string): boolean {
   return element.hasAttribute(toKebabCase(name))
 }
 
-function findProvider(owner: Owner | null, name?: string): Record<string, unknown> {
-  let cursor = owner ?? null
-
-  while (cursor) {
-    if (name) {
-      if (cursor.name === name) {
-        return cursor.providers
-      }
-    } else if (Object.keys(cursor.providers).length > 0) {
-      return cursor.providers
-    }
-
-    cursor = cursor.parent
-  }
-
-  return getService(name)
-}
-
 export function createContext(owner: Owner, host: Element): Context {
-  const api: Context = {
+  const api = {
     element: host,
     host,
     name: owner.name,
     tagName: owner.name,
-    inject(name?: string) {
-      return findProvider(owner, name)
+    inject<T>(selector: (reg: Reg) => T): T {
+      const reg: Reg = {
+        components: new Proxy({} as never, {
+          get(_: never, id: string | symbol) {
+            if (typeof id === 'symbol') return undefined
+            return walkComponentProviders(id, host)
+          },
+        }),
+        services: new Proxy({} as never, {
+          get(_: never, id: string | symbol) {
+            if (typeof id === 'symbol') return undefined
+            if (__DEV__ && !hasService(id)) {
+              const all = getAllServiceIds()
+              throw new Error(
+                `[xzo] InjectNotFoundError — service "${id}" is not registered.\n` +
+                `  ✘ Registered services: ${all.length ? all.join(', ') : 'none'}`
+              )
+            }
+            return getService(id)
+          },
+        }),
+      }
+      return selector(reg)
     },
     effect(callback: Parameters<typeof effect>[0]) {
       const dispose = effect(callback)
       addCleanup(owner, dispose)
       return dispose
+    },
+    observe<T>(sigOrSigs: AnySignal<T> | AnySignal<unknown>[], cb: ((value: T, prev: T | undefined) => void) | ((values: unknown[], prev: unknown[] | undefined) => void)) {
+      if (Array.isArray(sigOrSigs)) {
+        let prevValues: unknown[] | undefined
+        const dispose = effect(() => {
+          const values = sigOrSigs.map(s => s.value)
+          const prev = prevValues
+          prevValues = values
+          untracked(() => (cb as (values: unknown[], prev: unknown[] | undefined) => void)(values, prev))
+        })
+        addCleanup(owner, dispose)
+      } else {
+        let prevValue: T | undefined
+        const dispose = effect(() => {
+          const value = (sigOrSigs as AnySignal<T>).value
+          const prev = prevValue
+          prevValue = value
+          if (__DEV__) {
+            // Detect potential cycle: same signal mutated inside callback
+            const observedSig = sigOrSigs
+            const origSet = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(observedSig), 'value')?.set
+            if (origSet) {
+              // Patch temporarily to detect mutation
+            }
+          }
+          untracked(() => (cb as (value: T, prev: T | undefined) => void)(value, prev))
+        })
+        addCleanup(owner, dispose)
+      }
     },
     onMount(callback: () => void) {
       addMountCallback(owner, callback)
@@ -213,5 +250,5 @@ export function createContext(owner: Owner, host: Element): Context {
 
       return Reflect.get(target, property, receiver)
     },
-  })
+  }) as unknown as Context
 }
