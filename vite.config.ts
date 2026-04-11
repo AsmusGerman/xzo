@@ -4,8 +4,15 @@ import babel from '@rolldown/plugin-babel'
 
 export default defineConfig(async () => ({
   root: fileURLToPath(new URL('./demo', import.meta.url)),
+  define: {
+    __DEV__: JSON.stringify(true),
+  },
   resolve: {
     alias: [
+      {
+        find: /^@xzo\/router$/,
+        replacement: fileURLToPath(new URL('./packages/router/src/index.ts', import.meta.url)),
+      },
       {
         find: /^xzo\/dom$/,
         replacement: fileURLToPath(new URL('./src/dom/index.ts', import.meta.url)),
