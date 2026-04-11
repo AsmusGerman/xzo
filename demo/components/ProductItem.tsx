@@ -4,6 +4,9 @@ import type { AnySignal } from 'xzo'
 import type { Product } from './types'
 
 lib.define('product-item', (ctx) => {
+  // todo: need to declare the props type somewhere to avoid the `as unknown` assertion here
+  // since the component is expecting the product we have to give visibility on the props the parent can use
+  
   const product = ctx.product as unknown as AnySignal<Product>
   const name = computed(() => product.value.name)
   const id = computed(() => product.value.id)
@@ -11,7 +14,7 @@ lib.define('product-item', (ctx) => {
   const description = computed(() => product.value.description)
   const imagePath = computed(() => product.value.imagePath)
 
-  const { cart } = ctx.inject('app') as { cart: AnySignal<Product[]> }
+  const { cart } = ctx.inject(reg => reg.services.cart)
   const added = signal(false)
 
   const image = lib.async(async () => {
@@ -24,10 +27,10 @@ lib.define('product-item', (ctx) => {
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
   })
 
-  // Demonstrate ctx.effect — sync the "added" flag with the cart signal
+  // Demonstrate ctx.observe — sync the "added" flag with the cart signal
   // so that if an item is removed from the cart, the button resets
-  ctx.effect(() => {
-    const inCart = cart.value.some((entry) => entry.id === Number(id.value))
+  ctx.observe(cart, (cartValue) => {
+    const inCart = cartValue.some((entry) => entry.id === Number(id.value))
     added.value = inCart
   })
 
