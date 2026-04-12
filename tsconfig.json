@@ -12,8 +12,12 @@
     "noEmit": true,
     "skipLibCheck": true,
     "paths": {
+      "xzo": ["./src/index.ts"],
+      "xzo/dom": ["./src/dom/index.ts"],
+      "xzo/jsx-runtime": ["./src/jsx-runtime.ts"],
+      "xzo/jsx-dev-runtime": ["./src/jsx-dev-runtime.ts"],
       "@xzo/router": ["./packages/router/src/index.ts"]
     }
   },
-  "include": ["src", "demo", "packages/router/src", "vite.config.ts"]
+  "include": ["src", "demos", "packages/router/src", "vite.config.ts"]
 }

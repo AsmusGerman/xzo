@@ -1,0 +1,8 @@
+{
+  "name": "demo-memory-game",
+  "private": true,
+  "scripts": {
+    "dev": "DEMO=demos/memory-game node ../../node_modules/vite/bin/vite.js --config ../../vite.config.ts",
+    "build": "DEMO=demos/memory-game node ../../node_modules/vite/bin/vite.js build --config ../../vite.config.ts"
+  }
+}

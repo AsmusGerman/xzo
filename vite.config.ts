@@ -2,8 +2,11 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import babel from '@rolldown/plugin-babel'
 
+declare const process: { env: Record<string, string | undefined> }
+const demo = process.env.DEMO ?? 'demos/memory-game'
+
 export default defineConfig(async () => ({
-  root: fileURLToPath(new URL('./demo', import.meta.url)),
+  root: fileURLToPath(new URL(`./${demo}`, import.meta.url)),
   define: {
     __DEV__: JSON.stringify(true),
   },
