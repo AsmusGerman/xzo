@@ -1,7 +1,17 @@
 import './context'
-import type { path, query } from './state';
-import type { PathParams, NavigateFn, GuardFn, GuardPhase, RouteRegistry } from './types';
-export { Router, } from "./router";
+import { path, query } from './state'
+import type { PathParams, NavigateFn, GuardFn, GuardPhase, RouteRegistry } from './types'
+export { Router } from './router'
+export { page } from './page'
+export type {
+  RouterSource,
+  RouteRegistry,
+  PathParams,
+  GuardFn,
+  GuardResult,
+  GuardPhase,
+  NavigateFn,
+} from './types'
 
 // module augmentation to add router() and page() to xzo.lib,
 // and navigate, path, query, params, guard(), redirect() to xzo.ctx
@@ -26,3 +36,5 @@ declare module 'xzo' {
     redirect<Id extends keyof RouteRegistry>(id: Id): { redirect: Id }
   }
 }
+
+export { path, query }
