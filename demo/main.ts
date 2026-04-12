@@ -1,9 +1,6 @@
 import { lib, signal } from 'xzo'
 
-import './components/App'
-import './components/ProductList'
-import './components/ProductItem'
-import './components/CartSummary'
+import './components'
 
 type LogEntry = { id: number; text: string }
 

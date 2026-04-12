@@ -62,13 +62,7 @@ lib.define("cart-summary", (ctx) => {
           </items.each>
         </ul>
         <div class="cart-actions">
-          <button
-            class="checkout-btn"
-            disabled={checkoutDisabled.value}
-            onclick={() => ctx.emit("cart-checkout")}
-          >
-            Complete checkout
-          </button>
+          <checkout-button />
         </div>
       </div>
     ),
