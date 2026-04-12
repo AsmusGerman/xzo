@@ -1,5 +1,4 @@
 import { css, lib } from 'xzo'
-import type { AnySignal } from 'xzo'
 
 lib.root('app', (ctx) => {
   const logger = ctx.inject(reg => reg.services.logger);
