@@ -8,7 +8,7 @@ import {
   getOwner,
   mountOwner,
   runWithOwner,
-  setOwnerProviders,
+  setOwnerScope,
   type Owner,
 } from './scheduler'
 import { applyScope, injectStyles } from './styles'
@@ -29,36 +29,36 @@ const componentTable = new WeakMap<Element, Map<string, unknown>>()
 const services = new Map<string, Record<string, unknown> | ServiceFactory>()
 let observer: MutationObserver | null = null
 
-function buildProviders(result: ComponentResult): Record<string, unknown> {
-  const providers: Record<string, unknown> = {}
+function buildScope(result: ComponentResult): Record<string, unknown> {
+  const scope: Record<string, unknown> = {}
 
   for (const [key, value] of Object.entries(result)) {
     if (!RESERVED_KEYS.has(key)) {
-      providers[key] = value
+      scope[key] = value
     }
   }
 
   if (result.scope) {
-    Object.assign(providers, result.scope)
+    Object.assign(scope, result.scope)
   }
 
-  return providers
+  return scope
 }
 
-function buildServiceProviders(result: Record<string, unknown>): Record<string, unknown> {
-  const providers: Record<string, unknown> = {}
+function buildServiceScope(result: Record<string, unknown>): Record<string, unknown> {
+  const scope: Record<string, unknown> = {}
 
   for (const [key, value] of Object.entries(result)) {
     if (!RESERVED_KEYS.has(key)) {
-      providers[key] = value
+      scope[key] = value
     }
   }
 
   if (result.scope && typeof result.scope === 'object') {
-    Object.assign(providers, result.scope as Record<string, unknown>)
+    Object.assign(scope, result.scope as Record<string, unknown>)
   }
 
-  return providers
+  return scope
 }
 
 function findParentOwner(element: Element): Owner | null {
@@ -116,7 +116,7 @@ function mountElement(element: Element): void {
   }
 
   const result = runWithOwner(owner, () => definition(createContext(owner, element)))
-  setOwnerProviders(owner, buildProviders(result))
+  setOwnerScope(owner, buildScope(result))
 
   if (result.styles) {
     injectStyles(name, result.styles)
@@ -182,7 +182,7 @@ export function service(name: string, factory: ServiceFactory): void {
 function initServices(): void {
   for (const [name, entry] of services) {
     if (typeof entry === 'function') {
-      services.set(name, buildServiceProviders(entry()))
+      services.set(name, buildServiceScope(entry()))
     }
   }
 }
@@ -206,7 +206,7 @@ export function getService(name?: string): Record<string, unknown> {
   return existing
 }
 
-export function walkComponentProviders(id: string, host: Element): unknown {
+export function walkComponentScope(id: string, host: Element): unknown {
   // Check per-element cache first
   const cache = componentTable.get(host)
   if (cache && cache.has(id)) {
@@ -225,10 +225,10 @@ export function walkComponentProviders(id: string, host: Element): unknown {
       if (path) {
         path.push(instance.owner.name)
       }
-      // Match by component NAME — reg.components.app returns the providers of
+      // Match by component NAME — reg.components.app returns the scope of
       // the ancestor component registered as "app", not a provider key named "app"
       if (instance.owner.name === id) {
-        const value = instance.owner.providers
+        const value = instance.owner.scope
         // Cache result
         const c = componentTable.get(host) ?? new Map<string, unknown>()
         c.set(id, value)

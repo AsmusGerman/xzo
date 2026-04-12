@@ -1,8 +1,17 @@
+/**
+ * The Owner represets a component instance in the scheduler.
+ * It manages the Lifecycle of the component, for onMount and onUnmount callback,
+ * cleanup functions and provide a way to store references and the scope for the component and its children.
+  */
 export type Owner = {
+  /** The name of the component instance */
   name: string
+  /** The parent owner in the component hierarchy */
   parent: Owner | null
+  /** The host element for the component */
   host: Element | null
-  providers: Record<string, unknown>
+  /** The exposed state and API of the component, available to its subtree */
+  scope: Record<string, unknown>
   mountCallbacks: Array<() => void>
   unmountCallbacks: Array<() => void>
   cleanups: Set<() => void>
@@ -17,7 +26,7 @@ export function createOwner(name: string, parent: Owner | null, host: Element | 
     name,
     parent,
     host,
-    providers: {},
+    scope: {},
     mountCallbacks: [],
     unmountCallbacks: [],
     cleanups: new Set(),
@@ -41,8 +50,8 @@ export function runWithOwner<T>(owner: Owner | null, fn: () => T): T {
   }
 }
 
-export function setOwnerProviders(owner: Owner, providers: Record<string, unknown>): void {
-  owner.providers = providers
+export function setOwnerScope(owner: Owner, scope: Record<string, unknown>): void {
+  owner.scope = scope
 }
 
 export function addMountCallback(owner: Owner, callback: () => void): void {
@@ -77,6 +86,6 @@ export function disposeOwner(owner: Owner): void {
   owner.mountCallbacks.length = 0
   owner.unmountCallbacks.length = 0
   owner.refs.clear()
-  owner.providers = {}
+  owner.scope = {}
   owner.mounted = false
 }
