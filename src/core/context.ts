@@ -7,7 +7,7 @@ import {
   addUnmountCallback,
   type Owner,
 } from './scheduler'
-import { getService, walkComponentProviders, getAllServiceIds, hasService } from './lib'
+import { getService, walkComponentScope, getAllServiceIds, hasService } from './lib'
 
 // Optional context extension points — populated by @xzo/router or other add-ons
 const contextExtensions = new Map<string, (owner: Owner, host: Element) => unknown>()
@@ -155,7 +155,7 @@ export function createContext(owner: Owner, host: Element): Context<{}> {
         components: new Proxy({} as never, {
           get(_: never, id: string | symbol) {
             if (typeof id === 'symbol') return undefined
-            return walkComponentProviders(id, host)
+            return walkComponentScope(id, host)
           },
         }),
         services: new Proxy({} as never, {

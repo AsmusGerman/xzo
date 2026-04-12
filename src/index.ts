@@ -24,7 +24,7 @@ export { addCleanup, getOwner } from './core/scheduler'
 // Named function exports (tree-shakeable)
 export { define, root, service, init } from './core/lib'
 export { define as component } from './core/lib'
-export { debounce, throttle } from './core/timing'
+export { debounce, throttle } from './utils/timing'
 export { lib, signal, computed, batch }
 export const untrack = untracked
 

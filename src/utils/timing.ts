@@ -1,5 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function debounce<T extends (...args: any[]) => any>(fn: T, ms: number): T {
+export function debounce<T extends (...args: unknown[]) => unknown>(fn: T, ms: number): T {
   let timer: ReturnType<typeof setTimeout> | undefined
   return function (this: unknown, ...args: Parameters<T>) {
     clearTimeout(timer)
@@ -7,8 +6,7 @@ export function debounce<T extends (...args: any[]) => any>(fn: T, ms: number): 
   } as T
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function throttle<T extends (...args: any[]) => any>(fn: T, ms: number): T {
+export function throttle<T extends (...args: unknown[]) => unknown>(fn: T, ms: number): T {
   let last = 0
   return function (this: unknown, ...args: Parameters<T>) {
     const now = Date.now()

@@ -21,8 +21,8 @@ function createUnwrappedScope(owner: Owner | null): Record<string, unknown> {
         return undefined
       }
 
-      if (property in owner.providers) {
-        return normalizeValue(owner.providers[property])
+      if (property in owner.scope) {
+        return normalizeValue(owner.scope[property])
       }
 
       if (owner.host) {
