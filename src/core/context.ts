@@ -9,6 +9,13 @@ import {
 } from './scheduler'
 import { getService, walkComponentProviders, getAllServiceIds, hasService } from './lib'
 
+// Optional context extension points — populated by @xzo/router or other add-ons
+const contextExtensions = new Map<string, (owner: Owner, host: Element) => unknown>()
+
+export function registerContextExtension(name: string, getter: (owner: Owner, host: Element) => unknown): void {
+  contextExtensions.set(name, getter)
+}
+
 type HostWithSignals = Element & {
   __xz_propSignals?: Map<string, ReturnType<typeof signal<unknown>>>
   __xz_readonlyPropSignals?: Map<string, AnySignal<unknown>>
@@ -157,6 +164,7 @@ export function createContext(owner: Owner, host: Element): Context {
             return getService(id)
           },
         }),
+        page: undefined,
       }
       return selector(reg)
     },
@@ -232,6 +240,10 @@ export function createContext(owner: Owner, host: Element): Context {
   return new Proxy(api, {
     get(target, property, receiver) {
       if (typeof property === 'string') {
+        if (contextExtensions.has(property)) {
+          return contextExtensions.get(property)!(owner, host)
+        }
+
         if (!RESERVED_CONTEXT_KEYS.has(property) && hasResolvableProp(host, property)) {
           return getReadonlyPropSignal(host, property)
         }
