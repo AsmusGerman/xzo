@@ -2,15 +2,7 @@ import type { ComponentFactory, ComponentResult } from '../types'
 import { each } from './source-each'
 import { createAsyncSource } from './source-async'
 import { createContext, ensurePropSignal } from './context'
-import {
-  createOwner,
-  disposeOwner,
-  getOwner,
-  mountOwner,
-  runWithOwner,
-  setOwnerScope,
-  type Owner,
-} from './scheduler'
+import { Owner, getOwner, runWithOwner } from './scheduler'
 import { applyScope, injectStyles } from './styles'
 
 type MountedInstance = {
@@ -109,14 +101,14 @@ function mountElement(element: Element): void {
     }
   }
 
-  const owner = createOwner(name, findParentOwner(element), element)
+  const owner = new Owner(name, findParentOwner(element), element)
   mounted.set(element, { owner })
   if (rootDefinitions.has(name)) {
     mountedRoots.set(name, element)
   }
 
   const result = runWithOwner(owner, () => definition(createContext(owner, element)))
-  setOwnerScope(owner, buildScope(result))
+  owner.setScope(buildScope(result))
 
   if (result.styles) {
     injectStyles(name, result.styles)
@@ -124,7 +116,7 @@ function mountElement(element: Element): void {
   }
 
   element.replaceChildren(normalizeTemplate(result.template))
-  mountOwner(owner)
+  owner.mount()
   scanSubtree(element)
 }
 
@@ -134,7 +126,7 @@ function disposeElement(element: Element): void {
     return
   }
 
-  disposeOwner(instance.owner)
+  instance.owner.dispose()
   mounted.delete(element)
 
   const name = element.localName
