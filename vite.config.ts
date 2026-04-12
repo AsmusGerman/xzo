@@ -4,6 +4,9 @@ import babel from '@rolldown/plugin-babel'
 
 export default defineConfig(async () => ({
   root: fileURLToPath(new URL('./demo', import.meta.url)),
+  define: {
+    __DEV__: JSON.stringify(true),
+  },
   resolve: {
     alias: [
       {

@@ -14,7 +14,7 @@ lib.root('app', (ctx) => {
   type LogEntry = { id: number; text: string }
 
   // Retrieve the logger service registered in main.ts
-  const logger = ctx.inject('logger') as {
+  const logger = ctx.inject((reg) => reg.services.logger) as {
     entries: AnySignal<LogEntry[]>
     log: (message: string) => void
   }
