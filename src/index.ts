@@ -2,8 +2,10 @@ import { batch, computed, signal, untracked } from '@preact/signals-core'
 import { lib } from './core/lib'
 
 export type { Context } from './core/context'
+export { registerContextExtension } from './core/context'
 export type {
   AnySignal,
+  ActivePageScope,
   AsyncSource,
   ComponentFactory,
   ComponentRegistry,

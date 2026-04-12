@@ -8,9 +8,13 @@ export type Key = string | number
 export interface ComponentRegistry {}
 export interface ServiceRegistry {}
 
+// ActivePageScope is augmented by @xzo/router when installed
+export type ActivePageScope = Record<string, unknown> | undefined
+
 export type Reg = {
   components: ComponentRegistry
   services: ServiceRegistry
+  page: ActivePageScope
 }
 export type AnySignal<T = unknown> = Signal<T> | ReadonlySignal<T>
 
