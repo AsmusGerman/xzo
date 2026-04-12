@@ -1,0 +1,8 @@
+{
+  "name": "demo-simple-ecommerce",
+  "private": true,
+  "scripts": {
+    "dev": "DEMO=demos/simple-ecommerce node ../../node_modules/vite/bin/vite.js --config ../../vite.config.ts",
+    "build": "DEMO=demos/simple-ecommerce node ../../node_modules/vite/bin/vite.js build --config ../../vite.config.ts"
+  }
+}
