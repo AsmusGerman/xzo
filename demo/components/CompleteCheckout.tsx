@@ -6,23 +6,28 @@ lib.define('checkout-button', (ctx) => {
   const { total } = ctx.inject('app') as {
     total: AnySignal<number>;
   };
-  console.log('deasd');
 
   const checkoutDisabled = computed(() => total.value === 0);
-
   ctx.onMount(() => {
     console.log('[checkout-button] mounted');
   });
 
   return {
     template: (
-      <button
-        class='checkout-btn'
-        disabled={checkoutDisabled.value}
-        onclick={() => ctx.emit('cart-checkout')}
-      >
-        Complete checkout
-      </button>
+      <div>
+        {() =>
+          !checkoutDisabled.value ? (
+            <button
+              class='checkout-btn'
+              onclick={() => ctx.emit('cart-checkout')}
+            >
+              Complete checkout
+            </button>
+          ) : (
+            <div></div>
+          )
+        }
+      </div>
     ),
     styles: css`
       .checkout-btn {
