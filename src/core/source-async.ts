@@ -87,8 +87,8 @@ function createSelectorContext(owner: NonNullable<ReturnType<typeof getOwner>>):
         return undefined
       }
 
-      if (property in owner.providers) {
-        return unwrap(owner.providers[property])
+      if (property in owner.scope) {
+        return unwrap(owner.scope[property])
       }
 
       if (owner.host) {
