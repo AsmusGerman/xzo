@@ -12,9 +12,20 @@ export type Owner = {
 
 let currentOwner: Owner | null = null
 
+/**
+ * Creates an object to represent the parent element
+ * @param name 
+ * Name of the component being created
+ * @param parent 
+ * Parent component definition
+ * @param host 
+ * @returns 
+ */
 export function createOwner(name: string, parent: Owner | null, host: Element | null): Owner {
+  console.log(name, parent)
   return {
     name,
+    // This object is recursive all the way to the top node ('app').
     parent,
     host,
     providers: {},
