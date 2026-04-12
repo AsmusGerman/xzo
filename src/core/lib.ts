@@ -1,6 +1,5 @@
 import type { ComponentFactory, ComponentResult } from '../types'
-import { each } from './source-each'
-import { createAsyncSource } from './source-async'
+import { each, createAsyncSource } from './directives'
 import { createContext, ensurePropSignal } from './context'
 import {
   createOwner,
@@ -145,7 +144,7 @@ function visitElements(node: Node, visitor: (element: Element) => void): void {
   if (!(node instanceof Element)) {
     return
   }
-
+  // if(node.nodeName === "CHECKOUT-BUTTON") debugger
   visitor(node)
 
   for (const child of Array.from(node.children)) {
@@ -165,6 +164,7 @@ function disposeSubtree(node: Node): void {
 }
 
 export function define(name: string, factory: ComponentFactory): void {
+  console.log(name)
   definitions.set(name, factory)
 }
 

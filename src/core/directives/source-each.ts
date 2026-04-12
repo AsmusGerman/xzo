@@ -1,7 +1,7 @@
 import { computed, effect } from '@preact/signals-core'
-import type { AnySignal, EachOptions, EachSource, Key } from '../types'
-import { isSignal, isWritableSignal } from '../types'
-import { addCleanup, getOwner, runWithOwner } from './scheduler'
+import type { AnySignal, EachOptions, EachSource, Key } from '../../types'
+import { isSignal, isWritableSignal } from '../../types'
+import { addCleanup, getOwner, runWithOwner } from '../scheduler'
 
 type Renderable = unknown
 
