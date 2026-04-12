@@ -20,7 +20,7 @@ export type {
   Unwrap,
 } from './types'
 export type { Lib } from './core/lib'
-export { addCleanup, getOwner } from './core/scheduler'
+export { Owner, getOwner } from './core/scheduler'
 // Named function exports (tree-shakeable)
 export { define, root, service, init } from './core/lib'
 export { define as component } from './core/lib'

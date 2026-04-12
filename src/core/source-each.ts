@@ -1,7 +1,7 @@
 import { computed, effect } from '@preact/signals-core'
 import type { AnySignal, EachOptions, EachSource, Key } from '../types'
 import { isSignal, isWritableSignal } from '../types'
-import { addCleanup, getOwner, runWithOwner } from './scheduler'
+import { getOwner, runWithOwner } from './scheduler'
 
 type Renderable = unknown
 
@@ -74,7 +74,7 @@ function createBranch(condition: () => boolean, render: () => Renderable): Node 
   })
 
   if (owner) {
-    addCleanup(owner, dispose)
+    owner.addCleanup(dispose)
   }
 
   return fragment
