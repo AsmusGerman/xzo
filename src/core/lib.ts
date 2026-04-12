@@ -286,8 +286,8 @@ export function init(rootNode: Document | Element = document): void {
 }
 
 export interface Lib {
-  define(name: string, factory: ComponentFactory): void
-  root(name: string, factory: ComponentFactory): void
+  define<Contract = {}>(name: string, factory: (ctx: import('./context').Context<Contract>) => ComponentResult): void
+  root<Contract = {}>(name: string, factory: (ctx: import('./context').Context<Contract>) => ComponentResult): void
   service(name: string, factory: () => Record<string, unknown>): void
   init(rootNode?: Document | Element): void
   each: typeof each
@@ -295,10 +295,10 @@ export interface Lib {
 }
 
 export const lib = {
-  define,
-  root,
-  service,
-  init,
-  each,
-  async: createAsyncSource,
+  define:  /*@__PURE__*/ define,
+  root:    /*@__PURE__*/ root,
+  service: /*@__PURE__*/ service,
+  init:    /*@__PURE__*/ init,
+  each:    /*@__PURE__*/ each,
+  async:   /*@__PURE__*/ createAsyncSource,
 } as unknown as Lib

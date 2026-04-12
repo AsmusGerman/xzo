@@ -1,12 +1,16 @@
 import { computed, css, lib } from "xzo";
+import type { ComponentProp, ComponentEvent } from "xzo";
 
-lib.define('card', (ctx) => {
-    // todo: the props are not working (value has to be infered from ctx.props, but instead is being accessed as ctx.value)
+type CardContract = {
+    key:     ComponentProp<string>
+    value:   ComponentProp<string>
+    flipped: ComponentProp<boolean>
+    matched: ComponentProp<boolean>
+    flip:    ComponentEvent<{ key: string; flipped: boolean }>
+}
 
-    const key = ctx.prop('key');
-    const value = ctx.prop('value');
-    const flipped = ctx.prop('flipped');
-    const matched = ctx.prop('matched');
+lib.define<CardContract>('card', (ctx) => {
+    const { key, value, flipped, matched } = ctx.props;
 
     const classes = computed(() => `memory-card ${flipped.value ? ' flipped' : ''} ${matched.value ? ' matched' : ''}`);
 
