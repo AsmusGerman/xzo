@@ -15,18 +15,15 @@ lib.define('checkout-button', (ctx) => {
   return {
     template: (
       <div>
-        {() =>
-          !checkoutDisabled.value ? (
-            <button
-              class='checkout-btn'
-              onclick={() => ctx.emit('cart-checkout')}
-            >
-              Complete checkout
-            </button>
-          ) : (
-            <div></div>
-          )
-        }
+        {lib.xif(
+          !checkoutDisabled.value,
+          <button
+            class='checkout-btn'
+            onclick={() => ctx.emit('cart-checkout')}
+          >
+            Complete checkout
+          </button>,
+        )}
       </div>
     ),
     styles: css`

@@ -1,5 +1,5 @@
 import type { ComponentFactory, ComponentResult } from '../types'
-import { each, createAsyncSource } from './directives'
+import { each, createAsyncSource, xif } from './directives'
 import { createContext, ensurePropSignal } from './context'
 import {
   createOwner,
@@ -237,4 +237,5 @@ export const lib = {
   init,
   each,
   async: createAsyncSource,
+  xif
 }
