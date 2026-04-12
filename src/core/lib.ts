@@ -29,6 +29,23 @@ const componentTable = new WeakMap<Element, Map<string, unknown>>()
 const services = new Map<string, Record<string, unknown> | ServiceFactory>()
 let observer: MutationObserver | null = null
 
+/**
+ * Builds the providers object for a component from its result, separating out reserved keys.
+ * The "scope" property is merged into the top-level providers for convenience, but it's not
+ * required to be used — it's just an optional namespacing mechanism.
+ * 
+ * @example
+ * 
+ * lib.define('app', (ctx) => {
+    const cart = signal([])
+    const total = computed(() => cart.value.length)
+    return { template, cart, total }  // cart and total are directly injectable
+  })
+ * 
+ * TODO: consider changing the name from providers to scope,
+ * since the "providers" terminology is a bit overloaded and can be confused with context providers in other frameworks.
+ * The idea of "providing" values to descendants is still there, but it might be clearer to just call it scope.
+ */
 function buildProviders(result: ComponentResult): Record<string, unknown> {
   const providers: Record<string, unknown> = {}
 
@@ -45,6 +62,25 @@ function buildProviders(result: ComponentResult): Record<string, unknown> {
   return providers
 }
 
+/**
+ * Similar to buildProviders,
+ * but only includes non-reserved keys that are functions (e.g. signals, computed)
+ * since services are meant to be injected and used directly, not as a context object.
+ * 
+ * @example
+ * lib.service('logger', () => {
+    const entries = signal<string[]>([])
+
+    function log(message: string) {
+      entries.value = [...entries.value, message]
+    }
+
+    return { entries, log }
+  })
+
+ * After buildServiceProviders runs, what gets stored and later returned by ctx.inject(reg => reg.services.logger) is:
+ * { entries: Signal<string[]>, log: (message: string) => void }
+ */
 function buildServiceProviders(result: Record<string, unknown>): Record<string, unknown> {
   const providers: Record<string, unknown> = {}
 
@@ -206,6 +242,13 @@ export function getService(name?: string): Record<string, unknown> {
   return existing
 }
 
+/**
+ * Walks up the DOM tree from the given host element to find the nearest ancestor component that provides the requested id,
+ * returning its providers object.
+ * Results are cached per host element to optimize repeated lookups,
+ * which is common when multiple properties or effects are injected from the same ancestor.
+ * If no matching provider is found, returns undefined (or throws in dev mode with a helpful message).
+ */
 export function walkComponentProviders(id: string, host: Element): unknown {
   // Check per-element cache first
   const cache = componentTable.get(host)
