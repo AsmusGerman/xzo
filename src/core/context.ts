@@ -1,12 +1,7 @@
 import { computed, effect, signal, untracked } from '@preact/signals-core'
 import type { AnySignal, PropsOf, EventsOf, Reg } from '../types'
 import { toKebabCase } from '../types'
-import {
-  addCleanup,
-  addMountCallback,
-  addUnmountCallback,
-  type Owner,
-} from './scheduler'
+import { type Owner } from './scheduler'
 import { getService, walkComponentScope, getAllServiceIds, hasService } from './lib'
 
 // Optional context extension points — populated by @xzo/router or other add-ons
@@ -234,7 +229,7 @@ export function createContext(owner: Owner, host: Element): Context<{}> {
           prevValues = values
           untracked(() => (callback as (values: unknown[], prev: unknown[] | undefined) => void)(values, prev))
         })
-        addCleanup(owner, dispose)
+        owner.addCleanup(dispose)
       } else {
         let prevValue: T | undefined
         const dispose = effect(() => {
@@ -251,14 +246,14 @@ export function createContext(owner: Owner, host: Element): Context<{}> {
           }
           untracked(() => (callback as (value: T, prev: T | undefined) => void)(value, prev))
         })
-        addCleanup(owner, dispose)
+        owner.addCleanup(dispose)
       }
     },
     onMount(callback: () => void) {
-      addMountCallback(owner, callback)
+      owner.addMountCallback(callback)
     },
     onUnmount(callback: () => void) {
-      addUnmountCallback(owner, callback)
+      owner.addUnmountCallback(callback)
     },
     /**
      * Access a reactive property signal for the given name.
@@ -323,7 +318,7 @@ export function createContext(owner: Owner, host: Element): Context<{}> {
         target.removeEventListener(eventName, handler, options)
       }
 
-      addCleanup(owner, cleanup)
+      owner.addCleanup(cleanup)
       return cleanup
     },
   }
