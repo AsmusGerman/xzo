@@ -3,6 +3,22 @@ import type { Context } from './core/context'
 
 export type Key = string | number
 
+// ---------------------------------------------------------------------------
+// Typed component contracts — Section 4
+// ---------------------------------------------------------------------------
+declare const PropBrand: unique symbol
+declare const EventBrand: unique symbol
+export type ComponentProp<T> = { readonly [PropBrand]: T }
+export type ComponentEvent<T = void> = { readonly [EventBrand]: T }
+export type PropsOf<Contract> = {
+  [K in keyof Contract as Contract[K] extends ComponentProp<unknown> ? K : never]:
+    Contract[K] extends ComponentProp<infer T> ? T : never
+}
+export type EventsOf<Contract> = {
+  [K in keyof Contract as Contract[K] extends ComponentEvent<unknown> ? K : never]:
+    Contract[K] extends ComponentEvent<infer T> ? T : never
+}
+
 // Registry interfaces — augmented by lib.define()/lib.root() and lib.service() respectively
 // via `declare module 'xzo' { interface ComponentRegistry { ... } }` in app/library code
 export interface ComponentRegistry {}
