@@ -4,6 +4,11 @@ import babel from '@rolldown/plugin-babel'
 
 export default defineConfig(async () => ({
   root: fileURLToPath(new URL('./demo', import.meta.url)),
+  define: {
+    // Inject __DEV__ global for conditional code paths in the library and demo components
+    // todo: replace with environment variable for production builds
+    __DEV__: JSON.stringify(true),
+  },
   resolve: {
     alias: [
       {
