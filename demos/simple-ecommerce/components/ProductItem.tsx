@@ -1,6 +1,5 @@
 import { computed } from '@preact/signals-core'
-import { css, lib, signal } from 'xzo'
-import type { AnySignal } from 'xzo'
+import { css, lib, signal, type AnySignal } from 'xzo'
 import type { Product } from './types'
 
 lib.define('product-item', (ctx) => {
