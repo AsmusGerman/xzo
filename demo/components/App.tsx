@@ -1,89 +1,12 @@
-import { computed } from '@preact/signals-core'
-import { css, lib, signal } from 'xzo'
-import type { AnySignal } from 'xzo'
-import type { Product } from './types'
+import { css, lib } from 'xzo'
 
 lib.root('app', (ctx) => {
-  const cart = signal<Product[]>([])
-  const checkoutMessage = signal('')
-  const total = computed(() => cart.value.length)
-  const totalPrice = computed(() =>
-    cart.value.reduce((sum, item) => sum + item.price, 0).toFixed(2),
-  )
+  const logger = ctx.inject(reg => reg.services.logger);
+  const router = lib.router()
 
-  type LogEntry = { id: number; text: string }
-
-  // Retrieve the logger service registered in main.ts
-  const logger = ctx.inject((reg) => reg.services.logger) as {
-    entries: AnySignal<LogEntry[]>
-    log: (message: string) => void
-  }
-
-  function addToCart(item: Product) {
-    if (!cart.value.find((entry) => entry.id === item.id)) {
-      cart.value = [...cart.value, item]
-      checkoutMessage.value = ''
-      logger.log(`Added "${item.name}" to cart`)
-    }
-  }
-
-  function removeFromCart(id: number) {
-    const item = cart.value.find((entry) => entry.id === id)
-    if (item) {
-      cart.value = cart.value.filter((entry) => entry.id !== id)
-      logger.log(`Removed "${item.name}" from cart`)
-    }
-  }
-
-  function completeCheckout() {
-    if (cart.value.length === 0) {
-      checkoutMessage.value = 'Add at least one item before checkout.'
-      logger.log('Checkout blocked because the cart is empty')
-      return
-    }
-
-    const items = cart.value
-    const amount = totalPrice.value
-    cart.value = []
-    checkoutMessage.value = `Checkout complete for ${items.length} item${items.length === 1 ? '' : 's'} totaling $${amount}.`
-    logger.log(`Checkout completed for $${amount}`)
-  }
-
-  // Demonstrate ctx.listen — listen for custom events bubbling from children
-  ctx.listen('cart-add', ((event: CustomEvent<Product>) => {
-    addToCart(event.detail)
-  }) as EventListener)
-
-  ctx.listen('cart-remove', ((event: CustomEvent<{ id: number }>) => {
-    removeFromCart(event.detail.id)
-  }) as EventListener)
-
-  ctx.listen('cart-checkout', (() => {
-    completeCheckout()
-  }) as EventListener)
-
-  // Demonstrate ctx.effect — keep the document title in sync with the cart
-  ctx.effect(() => {
-    const count = total.value
-    document.title = count > 0
-      ? `Storefront Demo (${count} item${count === 1 ? '' : 's'})`
-      : 'Storefront Demo'
-  })
-
-  // Demonstrate ctx.onMount / ctx.onUnmount
-  ctx.onMount(() => {
-    console.log('[app] mounted')
-    logger.log('App mounted')
-  })
-
-  ctx.onUnmount(() => {
-    console.log('[app] unmounted')
-  })
-
-  const logSource = lib.each(() => logger.entries.value, (entry) => entry.id)
+  const logs = lib.each(() => logger.entries.value, (entry) => entry.id)
 
   return {
-    scope: { cart, total, totalPrice, checkoutMessage, addToCart, removeFromCart, completeCheckout },
     template: (
       <div class="app-shell">
         <header class="hero">
@@ -95,31 +18,15 @@ lib.root('app', (ctx) => {
           </p>
         </header>
 
-        <main class="grid">
-          <section class="panel panel--products">
-            <div class="panel__header">
-              <h2>Products</h2>
-              <span class="badge">{total} in cart &middot; ${totalPrice}</span>
-            </div>
-            <product-list />
-          </section>
-
-          <section class="panel panel--cart">
-            <cart-summary />
-          </section>
-        </main>
-
-        <p class="checkout-message" style:display={computed(() => checkoutMessage.value ? '' : 'none')}>
-          {checkoutMessage}
-        </p>
+        <router.outlet />
 
         <aside class="panel panel--log">
           <h3>Activity Log <span class="log-badge">lib.service</span></h3>
-          <logSource.empty>
+          <logs.empty>
             <p class="empty">No activity yet.</p>
-          </logSource.empty>
+          </logs.empty>
           <ul class="log-list">
-            <logSource.each>{(entry) => <li class="log-entry">{entry.text}</li>}</logSource.each>
+            <logs.each>{(entry) => <li class="log-entry">{entry.text}</li>}</logs.each>
           </ul>
         </aside>
       </div>
@@ -163,53 +70,15 @@ lib.root('app', (ctx) => {
         color: #334155;
       }
 
-      .grid {
-        display: grid;
-        gap: 1.5rem;
-        max-width: 72rem;
-        margin: 0 auto;
-      }
-
-      .panel {
+      .panel--log {
         backdrop-filter: blur(18px);
         background: rgba(255, 255, 255, 0.8);
         border: 1px solid rgba(148, 163, 184, 0.25);
         border-radius: 1.5rem;
         box-shadow: 0 24px 50px rgba(15, 23, 42, 0.08);
-      }
-
-      .panel--products,
-      .panel--cart {
-        padding: 1.25rem;
-      }
-
-      .panel--log {
         max-width: 72rem;
         margin: 1.5rem auto 0;
         padding: 1.25rem;
-      }
-
-      .checkout-message {
-        max-width: 72rem;
-        margin: 1rem auto 0;
-        padding: 0.9rem 1rem;
-        border-radius: 1rem;
-        background: rgba(22, 163, 74, 0.12);
-        color: #166534;
-        font-weight: 700;
-      }
-
-      .panel__header {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 1rem;
-        margin-bottom: 1rem;
-      }
-
-      h2 {
-        margin: 0;
-        font-size: 1.15rem;
       }
 
       h3 {
@@ -218,12 +87,6 @@ lib.root('app', (ctx) => {
         display: flex;
         align-items: center;
         gap: 0.5rem;
-      }
-
-      .badge {
-        font-size: 0.88rem;
-        font-weight: 700;
-        color: #0369a1;
       }
 
       .log-badge {
@@ -258,12 +121,6 @@ lib.root('app', (ctx) => {
         color: #64748b;
         font-style: italic;
         margin: 0;
-      }
-
-      @media (min-width: 900px) {
-        .grid {
-          grid-template-columns: minmax(0, 1.3fr) minmax(20rem, 0.9fr);
-        }
       }
     `,
   }
