@@ -23,6 +23,12 @@ export type PathParams<Path extends string> = [ExtractParamNames<Path>] extends 
 export interface RouteRegistry {}
 
 // ---------------------------------------------------------------------------
+// Guard types — Section 2.11
+// ---------------------------------------------------------------------------
+export type GuardResult = boolean | { redirect: string }
+export type GuardFn = () => GuardResult | Promise<GuardResult>
+
+// ---------------------------------------------------------------------------
 // RouterSource — returned by lib.router(), follows EachSource/AsyncSource pattern
 // ---------------------------------------------------------------------------
 export type RouterSource = {
@@ -53,6 +59,15 @@ function compileSegments(path: string): string[] {
 // Per-element params map — set before element is inserted into DOM
 // ---------------------------------------------------------------------------
 const pageParamsMap = new WeakMap<Element, Record<string, string>>()
+
+// ---------------------------------------------------------------------------
+// Guard registries
+// ---------------------------------------------------------------------------
+const routeEnterGuards = new Map<string, GuardFn[]>()
+const routeLeaveGuards = new Map<string, GuardFn[]>()
+let activeRouteId: string | null = null
+const enterGuardInitedForOwner = new WeakSet<object>()
+const leaveGuardInitedForOwner = new WeakSet<object>()
 
 // ---------------------------------------------------------------------------
 // Current router state
@@ -104,9 +119,6 @@ function matchRoute(pathname: string): MatchResult {
   return best ?? (wildcardRoute ? { route: wildcardRoute, params: {} } : null)
 }
 
-// ---------------------------------------------------------------------------
-// Internal URL updater
-// ---------------------------------------------------------------------------
 function navigateByUrl(url: string, replace = false): void {
   if (replace) {
     history.replaceState(null, '', url)
@@ -118,7 +130,19 @@ function navigateByUrl(url: string, replace = false): void {
 }
 
 // ---------------------------------------------------------------------------
-// navigate overloads — typed against RouteRegistry
+// Guard runner
+// ---------------------------------------------------------------------------
+async function runGuards(guards: GuardFn[] | undefined): Promise<{ cancel: boolean; redirect?: string }> {
+  if (!guards || guards.length === 0) return { cancel: false }
+  for (const fn of guards) {
+    const result = await fn()
+    if (result === false) return { cancel: true }
+    if (typeof result === 'object' && 'redirect' in result) {
+      return { cancel: true, redirect: result.redirect }
+    }
+  }
+  return { cancel: false }
+}
 // ---------------------------------------------------------------------------
 type NavigateFn = {
   <Id extends keyof RouteRegistry>(
@@ -150,6 +174,21 @@ async function navigate(
     for (const [key, value] of Object.entries(params)) {
       url = url.replace(`:${key}`, encodeURIComponent(value))
     }
+  }
+
+  // -- leave guards for current page --
+  if (activeRouteId) {
+    const leaveResult = await runGuards(routeLeaveGuards.get(activeRouteId))
+    if (leaveResult.cancel) {
+      if (leaveResult.redirect) return navigate(leaveResult.redirect)
+      return
+    }
+  }
+  // -- enter guards for target page --
+  const enterResult = await runGuards(routeEnterGuards.get(id))
+  if (enterResult.cancel) {
+    if (enterResult.redirect) return navigate(enterResult.redirect)
+    return
   }
 
   navigateByUrl(url, opts?.replace)
@@ -191,6 +230,7 @@ function routerFactory(): RouterSource {
         currentElement.remove()
         currentElement = null
         currentRouteId = null
+        activeRouteId = null
       }
       clearRange(start, end)
       return
@@ -204,6 +244,7 @@ function routerFactory(): RouterSource {
     }
 
     currentRouteId = match.route.id
+    activeRouteId = match.route.id
     const el = document.createElement(match.route.tagName)
     pageParamsMap.set(el, match.params)
     end.parentNode.insertBefore(el, end)
@@ -248,6 +289,32 @@ registerContextExtension('navigate', () => navigate as NavigateFn)
 registerContextExtension('path', () => path)
 registerContextExtension('query', () => query)
 registerContextExtension('params', (_owner, host) => pageParamsMap.get(host as Element) ?? {})
+registerContextExtension('guard', (owner) => {
+  return (phaseOrFn: GuardFn | 'enter' | 'leave', fn?: GuardFn): void => {
+    const phase: 'enter' | 'leave' = typeof phaseOrFn === 'string' ? phaseOrFn : 'enter'
+    const guardFn = typeof phaseOrFn === 'function' ? phaseOrFn : fn!
+    if (phase === 'enter') {
+      if (!enterGuardInitedForOwner.has(owner)) {
+        routeEnterGuards.set(owner.name, [])
+        enterGuardInitedForOwner.add(owner)
+      }
+      routeEnterGuards.get(owner.name)!.push(guardFn)
+    } else {
+      if (!leaveGuardInitedForOwner.has(owner)) {
+        routeLeaveGuards.set(owner.name, [])
+        leaveGuardInitedForOwner.add(owner)
+      }
+      routeLeaveGuards.get(owner.name)!.push(guardFn)
+      addCleanup(owner, () => {
+        const g = routeLeaveGuards.get(owner.name)
+        if (g) { const i = g.indexOf(guardFn); if (i >= 0) g.splice(i, 1) }
+      })
+    }
+  }
+})
+registerContextExtension('redirect', () => {
+  return (id: string): { redirect: string } => ({ redirect: id })
+})
 
 // ---------------------------------------------------------------------------
 // lib.page() — registers a page component and its route
@@ -302,6 +369,9 @@ declare module 'xzo' {
     path: typeof path
     query: typeof query
     params: Record<string, string>
+    guard(fn: GuardFn): void
+    guard(phase: 'enter' | 'leave', fn: GuardFn): void
+    redirect<Id extends keyof RouteRegistry>(id: Id): { redirect: Id }
   }
 }
 

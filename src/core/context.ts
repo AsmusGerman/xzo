@@ -1,5 +1,5 @@
 import { computed, effect, signal, untracked } from '@preact/signals-core'
-import type { AnySignal, Reg } from '../types'
+import type { AnySignal, PropsOf, EventsOf, Reg } from '../types'
 import { toKebabCase } from '../types'
 import {
   addCleanup,
@@ -21,11 +21,12 @@ type HostWithSignals = Element & {
   __xz_readonlyPropSignals?: Map<string, AnySignal<unknown>>
 }
 
-export interface Context {
+export interface Context<Contract = {}> {
   readonly element: Element
   readonly host: Element
   readonly name: string
   readonly tagName: string
+  readonly props: { readonly [K in keyof PropsOf<Contract>]: AnySignal<PropsOf<Contract>[K]> }
   inject: <T>(selector: (reg: Reg) => T) => T
   effect: (callback: Parameters<typeof effect>[0]) => () => void
   observe: {
@@ -36,7 +37,12 @@ export interface Context {
   onUnmount: (callback: () => void) => void
   prop: <T>(name: string) => AnySignal<T>
   ref: <T>(name: string) => T
-  emit: (eventName: string, detail?: unknown) => void
+  emit: [keyof EventsOf<Contract>] extends [never]
+    ? (eventName: string, detail?: unknown) => void
+    : <K extends keyof EventsOf<Contract>>(
+        eventName: K,
+        ...args: EventsOf<Contract>[K] extends void ? [] : [detail: EventsOf<Contract>[K]]
+      ) => void
   listen: (eventName: string, handler: EventListener, options?: AddEventListenerOptions & { target?: EventTarget }) => () => void
   [name: string]: unknown
 }
@@ -51,6 +57,7 @@ const RESERVED_CONTEXT_KEYS = new Set([
   'onMount',
   'onUnmount',
   'prop',
+  'props',
   'ref',
   'emit',
   'listen',
@@ -165,7 +172,7 @@ function hasResolvableProp(host: Element, name: string): boolean {
   return element.hasAttribute(toKebabCase(name))
 }
 
-export function createContext(owner: Owner, host: Element): Context {
+export function createContext(owner: Owner, host: Element): Context<{}> {
   const api = {
     // todo: remove element from the public API since it's the same as host and can cause confusion — components should just use host
     element: host,
@@ -267,6 +274,12 @@ export function createContext(owner: Owner, host: Element): Context {
     prop<T>(name: string) {
       return getReadonlyPropSignal(host, name) as AnySignal<T>
     },
+    props: new Proxy({} as never, {
+      get(_: never, name: string | symbol) {
+        if (typeof name !== 'string') return undefined
+        return getReadonlyPropSignal(host, name)
+      },
+    }),
     ref<T>(name: string) {
       if (!owner.mounted) {
         throw new Error(`[xzo] ref("${name}") is only available after mount.`)
