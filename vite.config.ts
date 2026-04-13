@@ -12,6 +12,10 @@ export default defineConfig(async () => ({
   resolve: {
     alias: [
       {
+        find: /^@xzo\/router$/,
+        replacement: fileURLToPath(new URL('./packages/router/src/index.ts', import.meta.url)),
+      },
+      {
         find: /^xzo\/dom$/,
         replacement: fileURLToPath(new URL('./src/dom/index.ts', import.meta.url)),
       },

@@ -1,14 +1,8 @@
 import { css, lib, computed } from "xzo";
-import type { AnySignal } from "xzo";
 import type { Product } from "./types";
 
 lib.define("cart-summary", (ctx) => {
-  const { cart, total, totalPrice, checkoutMessage } = ctx.inject((reg) => reg.components.app) as {
-    cart: AnySignal<Product[]>;
-    total: AnySignal<number>;
-    totalPrice: AnySignal<string>;
-    checkoutMessage: AnySignal<string>;
-  };
+  const { cart, total, totalPrice, checkoutMessage } = ctx.inject(reg => reg.services.cart);
 
   const totalLabel = computed(
     () => `${total.value} item${total.value === 1 ? "" : "s"}`,
@@ -25,10 +19,6 @@ lib.define("cart-summary", (ctx) => {
   );
 
   const checkoutDisabled = computed(() => total.value === 0);
-
-  ctx.onMount(() => {
-    console.log("[cart-summary] mounted");
-  });
 
   return {
     template: (
