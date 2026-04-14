@@ -2,6 +2,7 @@ import { computed, effect } from '@preact/signals-core'
 import type { AnySignal, EachOptions, EachSource, Key } from '../../types'
 import { isSignal, isWritableSignal } from '../../types'
 import { addCleanup, getOwner, runWithOwner } from '../scheduler'
+import { clearRange, commitRange } from '../../dom'
 
 type Renderable = unknown
 
@@ -11,50 +12,6 @@ function unwrap<T>(value: T): T {
   }
 
   return value
-}
-
-function toNode(value: Renderable): Node | null {
-  if (value === null || value === undefined || value === false) {
-    return null
-  }
-
-  if (value instanceof Node) {
-    return value
-  }
-
-  return document.createTextNode(String(value))
-}
-
-function collectNodes(value: Renderable): Node[] {
-  if (Array.isArray(value)) {
-    return value.flatMap((entry) => collectNodes(entry))
-  }
-
-  const node = toNode(value)
-  return node ? [node] : []
-}
-
-function clearRange(start: Comment, end: Comment): void {
-  let cursor = start.nextSibling
-  while (cursor && cursor !== end) {
-    const next = cursor.nextSibling
-    cursor.parentNode?.removeChild(cursor)
-    cursor = next
-  }
-}
-
-function commitRange(start: Comment, end: Comment, value: Renderable): void {
-  clearRange(start, end)
-
-  const parent = end.parentNode
-  if (!parent) {
-    return
-  }
-
-  const nodes = collectNodes(value)
-  for (const node of nodes) {
-    parent.insertBefore(node, end)
-  }
 }
 
 function createBranch(condition: () => boolean, render: () => Renderable): Node {
