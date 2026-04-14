@@ -24,9 +24,28 @@ const definitions = new Map<string, ComponentFactory>()
 const rootDefinitions = new Set<string>()
 const mountedRoots = new Map<string, Element>()
 const mounted = new WeakMap<Element, MountedInstance>()
+// componentTable caches injection results (per-requesting-element), GC-safe
+const componentTable = new WeakMap<Element, Map<string, unknown>>()
 const services = new Map<string, Record<string, unknown> | ServiceFactory>()
 let observer: MutationObserver | null = null
 
+/**
+ * Builds the providers object for a component from its result, separating out reserved keys.
+ * The "scope" property is merged into the top-level providers for convenience, but it's not
+ * required to be used — it's just an optional namespacing mechanism.
+ * 
+ * @example
+ * 
+ * lib.define('app', (ctx) => {
+    const cart = signal([])
+    const total = computed(() => cart.value.length)
+    return { template, cart, total }  // cart and total are directly injectable
+  })
+ * 
+ * TODO: consider changing the name from providers to scope,
+ * since the "providers" terminology is a bit overloaded and can be confused with context providers in other frameworks.
+ * The idea of "providing" values to descendants is still there, but it might be clearer to just call it scope.
+ */
 function buildProviders(result: ComponentResult): Record<string, unknown> {
   const providers: Record<string, unknown> = {}
 
@@ -43,6 +62,25 @@ function buildProviders(result: ComponentResult): Record<string, unknown> {
   return providers
 }
 
+/**
+ * Similar to buildProviders,
+ * but only includes non-reserved keys that are functions (e.g. signals, computed)
+ * since services are meant to be injected and used directly, not as a context object.
+ * 
+ * @example
+ * lib.service('logger', () => {
+    const entries = signal<string[]>([])
+
+    function log(message: string) {
+      entries.value = [...entries.value, message]
+    }
+
+    return { entries, log }
+  })
+
+ * After buildServiceProviders runs, what gets stored and later returned by ctx.inject(reg => reg.services.logger) is:
+ * { entries: Signal<string[]>, log: (message: string) => void }
+ */
 function buildServiceProviders(result: Record<string, unknown>): Record<string, unknown> {
   const providers: Record<string, unknown> = {}
 
@@ -204,6 +242,66 @@ export function getService(name?: string): Record<string, unknown> {
   return existing
 }
 
+/**
+ * Walks up the DOM tree from the given host element to find the nearest ancestor component that provides the requested id,
+ * returning its providers object.
+ * Results are cached per host element to optimize repeated lookups,
+ * which is common when multiple properties or effects are injected from the same ancestor.
+ * If no matching provider is found, returns undefined (or throws in dev mode with a helpful message).
+ */
+export function walkComponentProviders(id: string, host: Element): unknown {
+  // Check per-element cache first
+  const cache = componentTable.get(host)
+  if (cache && cache.has(id)) {
+    return cache.get(id)
+  }
+
+  let path: string[] | undefined
+  if (__DEV__) {
+    path = []
+  }
+
+  let cursor: Element | null = host.parentElement
+  while (cursor) {
+    const instance = mounted.get(cursor)
+    if (instance) {
+      if (path) {
+        path.push(instance.owner.name)
+      }
+      // Match by component NAME — reg.components.app returns the providers of
+      // the ancestor component registered as "app", not a provider key named "app"
+      if (instance.owner.name === id) {
+        const value = instance.owner.providers
+        // Cache result
+        const c = componentTable.get(host) ?? new Map<string, unknown>()
+        c.set(id, value)
+        componentTable.set(host, c)
+        return value
+      }
+    }
+    cursor = cursor.parentElement
+  }
+
+  if (__DEV__) {
+    const pathStr = path && path.length ? path.join(' → ') : 'none'
+    throw new Error(
+      `[xzo] InjectNotFoundError — "${id}" not found in ancestor scopes\n` +
+      `  ✘ Searched: ${pathStr}\n` +
+      `  ✦ Hint: did you mean ctx.inject(reg => reg.services.${id})?`
+    )
+  }
+
+  return undefined
+}
+
+export function getAllServiceIds(): string[] {
+  return Array.from(services.keys())
+}
+
+export function hasService(name: string): boolean {
+  return services.has(name)
+}
+
 export function init(rootNode: Document | Element = document): void {
   initServices()
   scanSubtree(rootNode)
@@ -230,6 +328,15 @@ export function init(rootNode: Document | Element = document): void {
   observer.observe(target, { childList: true, subtree: true })
 }
 
+export interface Lib {
+  define(name: string, factory: ComponentFactory): void
+  root(name: string, factory: ComponentFactory): void
+  service(name: string, factory: () => Record<string, unknown>): void
+  init(rootNode?: Document | Element): void
+  each: typeof each
+  async: typeof createAsyncSource
+}
+
 export const lib = {
   define,
   root,
@@ -237,4 +344,4 @@ export const lib = {
   init,
   each,
   async: createAsyncSource,
-}
+} as unknown as Lib
