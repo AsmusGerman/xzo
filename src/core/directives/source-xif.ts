@@ -7,6 +7,11 @@ export function xif(
   render: () => Renderable,
   renderElse?: () => Renderable,
 ) {
+  const owner = getOwner();
+  if (!owner) {
+    throw new Error('[xzo] lib.xif() must be called during component setup.');
+  }
+
   return {
     if: () => createBranch(condition, render),
     else: () => createBranch(() => !condition(), renderElse ?? (() => null)),
