@@ -1,11 +1,18 @@
 import { effect } from '@preact/signals-core';
 import { addCleanup, getOwner } from '../scheduler';
 
-export function xif(condition: () => boolean, render: () => Renderable) {
-  return createBranch(condition, render);
+export function xif(
+  condition: () => boolean,
+  render: () => Renderable,
+  renderElse?: () => Renderable,
+) {
+  return {
+    if: () => createBranch(condition, render),
+    else: () => createBranch(() => !condition(), renderElse ?? (() => null)),
+  };
 }
 
-type Renderable = unknown;
+type Renderable = unknown | undefined;
 
 function clearRange(start: Comment, end: Comment): void {
   let cursor = start.nextSibling;

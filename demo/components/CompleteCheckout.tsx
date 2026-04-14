@@ -11,15 +11,25 @@ lib.define('checkout-button', (ctx) => {
     console.log('[checkout-button] mounted');
   });
 
-  const Test = () => lib.xif(
+  const test = lib.xif(
     () => !checkoutDisabled.value,
-    () => <button class='checkout-btn' onclick={() => ctx.emit('cart-checkout')}>
-      Complete checkout
-    </button>,
+    () => (
+      <button class='checkout-btn' onclick={() => ctx.emit('cart-checkout')}>
+        Complete checkout
+      </button>
+    ),
+    () => (
+      <div>Add items to be able to checkout</div>
+    )
   );
 
   return {
-    template: <div><Test /></div>,
+    template: (
+      <div>
+        <test.if />
+        <test.else />
+      </div>
+    ),
     styles: css`
       .checkout-btn {
         padding: 0.75rem 1rem;
