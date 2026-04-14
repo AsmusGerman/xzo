@@ -1,6 +1,5 @@
 import { lib, computed, css } from 'xzo';
 import type { AnySignal } from 'xzo';
-debugger;
 
 lib.define('checkout-button', (ctx) => {
   const { total } = ctx.inject('app') as {
@@ -12,20 +11,15 @@ lib.define('checkout-button', (ctx) => {
     console.log('[checkout-button] mounted');
   });
 
+  const Test = () => lib.xif(
+    () => !checkoutDisabled.value,
+    () => <button class='checkout-btn' onclick={() => ctx.emit('cart-checkout')}>
+      Complete checkout
+    </button>,
+  );
+
   return {
-    template: (
-      <div>
-        {lib.xif(
-          !checkoutDisabled.value,
-          <button
-            class='checkout-btn'
-            onclick={() => ctx.emit('cart-checkout')}
-          >
-            Complete checkout
-          </button>,
-        )}
-      </div>
-    ),
+    template: <div><Test /></div>,
     styles: css`
       .checkout-btn {
         padding: 0.75rem 1rem;
