@@ -102,7 +102,7 @@ function buildServiceProviders(result: Record<string, unknown>): Record<string, 
  * @param element 
  * The element that is being mounted
  * @returns {Owner | null}
- * Returns the the parent component of the current element
+ * Returns the parent component of the current element
  */
 function findParentOwner(element: Element): Owner | null {
   const explicitOwner = (element as Element & { _$owner?: Owner })._$owner
@@ -193,7 +193,6 @@ function disposeElement(element: Element): void {
  *  Current node 
  * @param visitor 
  *  Callback that is meant to run logic on the current node
- * @returns 
  */
 function visitElements(node: Node, visitor: (element: Element) => void): void {
   // Base case for the recursive function to avoid infinite loop
