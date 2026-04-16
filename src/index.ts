@@ -21,7 +21,13 @@ export type {
   Unwrap,
 } from './types'
 export type { Lib } from './core/lib'
-export { Owner, getOwner } from './core/scheduler'
+export { ComponentDefinition, getOwner } from './core/scheduler'
+/** @deprecated Use ComponentDefinition */
+export type { Owner } from './core/scheduler'
+
+export function addCleanup(owner: import('./core/scheduler').ComponentDefinition, cleanup: () => void): void {
+  owner.addCleanup(cleanup)
+}
 // Named function exports (tree-shakeable)
 export { define, root, service, init } from './core/lib'
 export { define as component } from './core/lib'

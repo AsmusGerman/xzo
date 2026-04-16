@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "node ./node_modules/vite/bin/vite.js",
+    "dev:todo-memory": "node ./node_modules/vite/bin/vite.js --config demos/todo-memory/vite.config.ts",
     "build": "node ./node_modules/vite/bin/vite.js build",
     "typecheck": "bunx --bun tsc --noEmit"
   },

@@ -1,9 +1,9 @@
 /**
- * Owner represents a component instance in the scheduler.
+ * ComponentDefinition represents a component instance in the scheduler.
  * It manages the lifecycle of the component — mount/unmount callbacks,
  * cleanup functions, element references, and the scope exposed to its subtree.
  */
-export class Owner {
+export class ComponentDefinition {
   /** The exposed state and API of the component, available to its subtree */
   scope: Record<string, unknown> = {}
   mountCallbacks: Array<() => void> = []
@@ -11,12 +11,41 @@ export class Owner {
   cleanupCallbacks: Array<() => void> = []
   refs: Map<string, unknown> = new Map()
   mounted = false
+  #disposed = false
+
+  readonly #parent: WeakRef<ComponentDefinition> | null
+  readonly #host: WeakRef<Element> | null
 
   constructor(
     public readonly name: string,
-    public readonly parent: Owner | null,
-    public readonly host: Element | null,
-  ) {}
+    parent: ComponentDefinition | null,
+    host: Element | null,
+  ) {
+    this.#parent = parent ? new WeakRef(parent) : null
+    this.#host = host ? new WeakRef(host) : null
+
+    if (host) {
+      const self = new WeakRef(this)
+      ownerRegistry.register(host, () => self.deref()?.dispose())
+    }
+  }
+
+  get parent(): ComponentDefinition | null {
+    return this.#parent?.deref() ?? null
+  }
+
+  get host(): Element | null {
+    return this.#host?.deref() ?? null
+  }
+
+  /** Alias for scope — used by source-each.ts and inject walk */
+  get providers(): Record<string, unknown> {
+    return this.scope
+  }
+
+  get isDisposed(): boolean {
+    return this.#disposed
+  }
 
   setScope(scope: Record<string, unknown>): void {
     this.scope = scope
@@ -35,6 +64,7 @@ export class Owner {
   }
 
   mount(): void {
+    if (this.mounted) return
     this.mounted = true
     for (const callback of this.mountCallbacks) {
       runWithOwner(this, callback)
@@ -42,28 +72,36 @@ export class Owner {
   }
 
   dispose(): void {
-    for (const callback of this.unmountCallbacks) {
-      runWithOwner(this, callback)
-    }
-    for (const cleanup of this.cleanupCallbacks) {
-      cleanup()
-    }
+    if (this.#disposed) return
+    this.#disposed = true
+
+    for (const cb of this.unmountCallbacks) cb()
+    for (const cb of this.cleanupCallbacks) cb()
+
     this.cleanupCallbacks.length = 0
     this.mountCallbacks.length = 0
     this.unmountCallbacks.length = 0
+
     this.refs.clear()
     this.scope = {}
     this.mounted = false
   }
 }
 
-let currentOwner: Owner | null = null
+/**
+ * Safety net — if dispose() is never called (e.g. innerHTML = '' removes the
+ * host without going through the framework), GC of the host element will
+ * eventually trigger cleanup via this registry.
+ */
+const ownerRegistry = new FinalizationRegistry<() => void>((cleanup) => cleanup())
+
+let currentOwner: ComponentDefinition | null = null
 
 /**
  * Returns the current owner — the component instance that is currently
  * being initialized. Only reliable during synchronous component setup.
  */
-export function getOwner(): Owner | null {
+export function getOwner(): ComponentDefinition | null {
   return currentOwner
 }
 
@@ -71,7 +109,7 @@ export function getOwner(): Owner | null {
  * Runs fn with the given owner set as the current owner, then restores
  * the previous owner. The finally block guarantees restoration even if fn throws.
  */
-export function runWithOwner<T>(owner: Owner | null, fn: () => T): T {
+export function runWithOwner<T>(owner: ComponentDefinition | null, fn: () => T): T {
   const previous = currentOwner
   currentOwner = owner
   try {
@@ -80,3 +118,6 @@ export function runWithOwner<T>(owner: Owner | null, fn: () => T): T {
     currentOwner = previous
   }
 }
+
+/** @deprecated Use ComponentDefinition */
+export type Owner = ComponentDefinition

@@ -10,8 +10,13 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "paths": {
+      "xzo": ["../../src/index.ts"],
+      "xzo/dom": ["../../src/dom/index.ts"],
+      "xzo/jsx-runtime": ["../../src/jsx-runtime.ts"],
+      "xzo/jsx-dev-runtime": ["../../src/jsx-dev-runtime.ts"]
+    }
   },
-  "include": ["src", "demos", "vite.config.ts"],
-  "exclude": ["src/**/*.test.ts"]
+  "include": [".", "../../src/jsx.d.ts", "../../src/stylis.d.ts"]
 }

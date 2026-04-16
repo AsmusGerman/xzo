@@ -1,0 +1,10 @@
+{
+  "name": "xzo-todo-memory-demo",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "node ../../node_modules/vite/bin/vite.js",
+    "build": "node ../../node_modules/vite/bin/vite.js build",
+    "typecheck": "bunx --bun tsc --noEmit"
+  }
+}

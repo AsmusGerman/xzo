@@ -1,6 +1,6 @@
 import { effect } from '@preact/signals-core'
 import { isSignal } from '../types'
-import { getOwner, runWithOwner, type Owner } from '../core/scheduler'
+import { getOwner, runWithOwner, type ComponentDefinition } from '../core/scheduler'
 
 function normalizeValue(value: unknown): unknown {
   if (isSignal(value)) {
@@ -10,7 +10,7 @@ function normalizeValue(value: unknown): unknown {
   return value
 }
 
-function createUnwrappedScope(owner: Owner | null): Record<string, unknown> {
+function createUnwrappedScope(owner: ComponentDefinition | null): Record<string, unknown> {
   if (!owner) {
     return {}
   }
@@ -34,7 +34,7 @@ function createUnwrappedScope(owner: Owner | null): Record<string, unknown> {
   }) as Record<string, unknown>
 }
 
-function invokeChildFn(fn: (...args: unknown[]) => unknown, owner: Owner | null): unknown {
+function invokeChildFn(fn: (...args: unknown[]) => unknown, owner: ComponentDefinition | null): unknown {
   if (fn.length > 0) {
     return fn(createUnwrappedScope(owner))
   }
@@ -87,18 +87,20 @@ export function insert(parent: Node, value: unknown, marker: Node | null = null)
 
   if (isSignal(value)) {
     let current: Node | null = null
-    effect(() => {
+    const dispose = effect(() => {
       current = runWithOwner(owner, () => reconcile(parent, value.value, current, marker))
     })
+    owner?.addCleanup(dispose)
     return
   }
 
   if (typeof value === 'function') {
     let current: Node | null = null
     const callback = value as (...args: unknown[]) => unknown
-    effect(() => {
+    const dispose = effect(() => {
       current = runWithOwner(owner, () => reconcile(parent, invokeChildFn(callback, owner), current, marker))
     })
+    owner?.addCleanup(dispose)
     return
   }
 

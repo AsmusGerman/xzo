@@ -2,11 +2,11 @@ import type { ComponentFactory, ComponentResult } from '../types'
 import { each } from './source-each'
 import { createAsyncSource } from './source-async'
 import { createContext, ensurePropSignal } from './context'
-import { Owner, getOwner, runWithOwner } from './scheduler'
+import { ComponentDefinition, getOwner, runWithOwner } from './scheduler'
 import { applyScope, injectStyles } from './styles'
 
 type MountedInstance = {
-  owner: Owner
+  owner: ComponentDefinition
 }
 
 type ServiceFactory = () => Record<string, unknown>
@@ -53,8 +53,8 @@ function buildServiceScope(result: Record<string, unknown>): Record<string, unkn
   return scope
 }
 
-function findParentOwner(element: Element): Owner | null {
-  const explicitOwner = (element as Element & { _$owner?: Owner })._$owner
+function findParentOwner(element: Element): ComponentDefinition | null {
+  const explicitOwner = (element as Element & { _$owner?: ComponentDefinition })._$owner
   if (explicitOwner) {
     return explicitOwner
   }
@@ -101,7 +101,7 @@ function mountElement(element: Element): void {
     }
   }
 
-  const owner = new Owner(name, findParentOwner(element), element)
+  const owner = new ComponentDefinition(name, findParentOwner(element), element)
   mounted.set(element, { owner })
   if (rootDefinitions.has(name)) {
     mountedRoots.set(name, element)

@@ -1,13 +1,13 @@
 import { computed, effect, signal, untracked } from '@preact/signals-core'
 import type { AnySignal, PropsOf, EventsOf, Reg } from '../types'
 import { toKebabCase } from '../types'
-import { type Owner } from './scheduler'
+import { type ComponentDefinition } from './scheduler'
 import { getService, walkComponentScope, getAllServiceIds, hasService } from './lib'
 
 // Optional context extension points — populated by @xzo/router or other add-ons
-const contextExtensions = new Map<string, (owner: Owner, host: Element) => unknown>()
+const contextExtensions = new Map<string, (owner: ComponentDefinition, host: Element) => unknown>()
 
-export function registerContextExtension(name: string, getter: (owner: Owner, host: Element) => unknown): void {
+export function registerContextExtension(name: string, getter: (owner: ComponentDefinition, host: Element) => unknown): void {
   contextExtensions.set(name, getter)
 }
 
@@ -29,6 +29,7 @@ export interface Context<Contract = {}> {
   }
   onMount: (callback: () => void) => void
   onUnmount: (callback: () => void) => void
+  effect: (fn: () => void) => () => void
   prop: <T>(name: string) => AnySignal<T>
   ref: <T>(name: string) => T
   emit: [keyof EventsOf<Contract>] extends [never]
@@ -47,6 +48,7 @@ const RESERVED_CONTEXT_KEYS = new Set([
   'tagName',
   'inject',
   'observe',
+  'effect',
   'onMount',
   'onUnmount',
   'prop',
@@ -139,7 +141,7 @@ function hasResolvableProp(host: Element, name: string): boolean {
   return element.hasAttribute(toKebabCase(name))
 }
 
-export function createContext(owner: Owner, host: Element): Context<{}> {
+export function createContext(owner: ComponentDefinition, host: Element): Context<{}> {
   const api = {
     element: host,
     host,
@@ -204,6 +206,11 @@ export function createContext(owner: Owner, host: Element): Context<{}> {
     },
     onUnmount(callback: () => void) {
       owner.addUnmountCallback(callback)
+    },
+    effect(fn: () => void) {
+      const dispose = effect(fn)
+      owner.addCleanup(dispose)
+      return dispose
     },
     prop<T>(name: string) {
       return getReadonlyPropSignal(host, name) as AnySignal<T>
