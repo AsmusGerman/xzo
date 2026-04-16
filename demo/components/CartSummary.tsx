@@ -3,7 +3,7 @@ import type { AnySignal } from "xzo";
 import type { Product } from "./types";
 
 lib.define("cart-summary", (ctx) => {
-  const { cart, total, totalPrice, checkoutMessage } = ctx.inject("app") as {
+  const { cart, total, totalPrice, checkoutMessage } = ctx.inject((reg) => reg.components.app) as {
     cart: AnySignal<Product[]>;
     total: AnySignal<number>;
     totalPrice: AnySignal<string>;

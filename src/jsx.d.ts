@@ -1,4 +1,7 @@
 declare global {
+  // Injected by Vite define — true in dev, false in production builds
+  const __DEV__: boolean
+
   namespace JSX {
     type Element = Node
 
