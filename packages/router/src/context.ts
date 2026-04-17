@@ -1,33 +1,40 @@
 import { registerContextExtension, registerLibExtension } from 'xzo'
-import type { GuardFn } from './types'
+import type { GuardFn, GuardPhase } from './types'
 import { path, query, pageParamsMap } from './state'
 import { registerGuard } from './guards'
 import { navigate } from './signals'
 import { routerFactory } from './outlet'
 import { page } from './page'
+import {
+    CTX_NAVIGATE,
+    CTX_PATH,
+    CTX_QUERY,
+    CTX_PARAMS,
+    CTX_GUARD,
+    CTX_REDIRECT,
+    LIB_ROUTER,
+    LIB_PAGE,
+} from './const'
 
 // No exports — this file is imported for its side effects only.
 // Each call to registerContextExtension wires up the context properties for every page component.
 
-//todo: the reserved keywords to const.ts
+registerContextExtension(CTX_NAVIGATE, () => navigate)
+registerContextExtension(CTX_PATH,     () => path)
+registerContextExtension(CTX_QUERY,    () => query)
+registerContextExtension(CTX_PARAMS,   (_owner, host) => pageParamsMap.get(host as Element) ?? {})
 
-registerContextExtension('navigate', () => navigate)
-registerContextExtension('path', () => path)
-registerContextExtension('query', () => query)
-registerContextExtension('params', (_owner, host) => pageParamsMap.get(host as Element) ?? {})
-
-registerContextExtension('guard', (owner) => {
-    // todo: enter | leave to type.ts
-    return (phaseOrFn: GuardFn | 'enter' | 'leave', fn?: GuardFn): void => {
-        const phase: 'enter' | 'leave' = typeof phaseOrFn === 'string' ? phaseOrFn : 'enter'
+registerContextExtension(CTX_GUARD, (owner) => {
+    return (phaseOrFn: GuardFn | GuardPhase, fn?: GuardFn): void => {
+        const phase: GuardPhase = typeof phaseOrFn === 'string' ? phaseOrFn : 'enter'
         const guardFn = typeof phaseOrFn === 'function' ? phaseOrFn : fn!
         registerGuard(owner, phase, guardFn)
     }
 })
 
-registerContextExtension('redirect', () => {
+registerContextExtension(CTX_REDIRECT, () => {
     return (id: string): { redirect: string } => ({ redirect: id })
 })
 
-registerLibExtension('router', routerFactory)
-registerLibExtension('page', page)
+registerLibExtension(LIB_ROUTER, routerFactory)
+registerLibExtension(LIB_PAGE,   page)

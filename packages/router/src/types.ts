@@ -23,6 +23,8 @@ export type PathParams<Path extends string> = [ExtractParamNames<Path>] extends 
  */
 export interface RouteRegistry { }
 
+export type GuardPhase = 'enter' | 'leave'
+
 export type GuardResult = boolean | { redirect: string }
 export type GuardFn = () => GuardResult | Promise<GuardResult>
 

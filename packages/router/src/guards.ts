@@ -1,5 +1,5 @@
 import { addCleanup } from 'xzo'
-import type { GuardFn } from './types'
+import type { GuardFn, GuardPhase } from './types'
 import type { Owner } from '../../../src/core/scheduler'
 
 export const routeEnterGuards = new Map<string, GuardFn[]>()
@@ -28,7 +28,7 @@ export async function runGuards(
  */
 export function registerGuard(
     owner: Owner,
-    phase: 'enter' | 'leave',
+    phase: GuardPhase,
     guardFn: GuardFn,
 ): void {
     if (phase === 'enter') {
