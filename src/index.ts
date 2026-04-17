@@ -3,6 +3,7 @@ import { lib } from './core/lib'
 
 export type { Context } from './core/context'
 export { registerContextExtension } from './core/context'
+export { registerLibExtension } from './core/lib'
 export type {
   AnySignal,
   ActivePageScope,

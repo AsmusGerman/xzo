@@ -335,6 +335,11 @@ export interface Lib {
   init(rootNode?: Document | Element): void
   each: typeof each
   async: typeof createAsyncSource
+  [key: string]: unknown
+}
+
+export function registerLibExtension(name: string, value: unknown): void {
+  ;(lib as unknown as Record<string, unknown>)[name] = value
 }
 
 export const lib = {

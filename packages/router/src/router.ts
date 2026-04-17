@@ -1,411 +1,214 @@
-import { effect, signal } from '@preact/signals-core'
-import type { ComponentFactory } from 'xzo'
-import { addCleanup, getOwner, lib as xzoLib, registerContextExtension } from 'xzo'
+import type { MatchResult, RouteEntry, TrieNode } from "./types";
 
-// ---------------------------------------------------------------------------
-// Type utilities — extract param keys from a path string
-// e.g. '/products/:id' → 'id'
-// ---------------------------------------------------------------------------
-type ExtractParamNames<Path extends string> =
-  Path extends `${string}:${infer Param}/${infer Rest}`
-    ? Param | ExtractParamNames<`/${Rest}`>
-    : Path extends `${string}:${infer Param}`
-    ? Param
-    : never
 
-export type PathParams<Path extends string> = [ExtractParamNames<Path>] extends [never]
-  ? Record<string, never>
-  : { [K in ExtractParamNames<Path>]: string }
+/** 
+ * @internal
+ * A trie-based router implementation that efficiently matches pathnames to registered routes.
+ * The router maintains a trie data structure where each node represents a segment of the path.
+ * 
+ * All methods are synchronous by design — trie traversal is pure in-memory
+ * computation with no I/O, and completes in microseconds even with hundreds
+ * of routes.
+ */
+export class Router {
+    // The root of the trie data structure that will hold all the routes
+    private root: TrieNode = Router.createNode();
+    private registry = new Map<string, RouteEntry>()
 
-// ---------------------------------------------------------------------------
-// Registry interfaces — augmented by lib.page()
-// ---------------------------------------------------------------------------
-export interface RouteRegistry {}
-
-// ---------------------------------------------------------------------------
-// Guard types — Section 2.11
-// ---------------------------------------------------------------------------
-export type GuardResult = boolean | { redirect: string }
-export type GuardFn = () => GuardResult | Promise<GuardResult>
-
-// ---------------------------------------------------------------------------
-// RouterSource — returned by lib.router(), follows EachSource/AsyncSource pattern
-// ---------------------------------------------------------------------------
-export type RouterSource = {
-  outlet(props?: Record<string, unknown>): Node
-  pending(props?: { children?: unknown }): Node
-  error(props?: { children?: unknown }): Node
-}
-
-// ---------------------------------------------------------------------------
-// Internal route table
-// ---------------------------------------------------------------------------
-type RouteEntry = {
-  id: string
-  path: string
-  /** Normalised path segments, e.g. ['products', ':id'] */
-  segments: string[]
-  /** Custom element tag name for mounting */
-  tagName: string
-}
-
-const routeTable = new Map<string, RouteEntry>()
-
-function compileSegments(path: string): string[] {
-  return path.replace(/^\//, '').split('/').filter(Boolean)
-}
-
-// ---------------------------------------------------------------------------
-// Per-element params map — set before element is inserted into DOM
-// ---------------------------------------------------------------------------
-const pageParamsMap = new WeakMap<Element, Record<string, string>>()
-
-// ---------------------------------------------------------------------------
-// Guard registries
-// ---------------------------------------------------------------------------
-const routeEnterGuards = new Map<string, GuardFn[]>()
-const routeLeaveGuards = new Map<string, GuardFn[]>()
-let activeRouteId: string | null = null
-const enterGuardInitedForOwner = new WeakSet<object>()
-const leaveGuardInitedForOwner = new WeakSet<object>()
-
-// ---------------------------------------------------------------------------
-// Current router state
-// ---------------------------------------------------------------------------
-export const path = signal(location.pathname)
-export const query = signal(new URLSearchParams(location.search))
-
-// ---------------------------------------------------------------------------
-// Route matching
-// ---------------------------------------------------------------------------
-type MatchResult = { route: RouteEntry; params: Record<string, string> } | null
-
-function matchRoute(pathname: string): MatchResult {
-  const segments = pathname.replace(/^\//, '').split('/').filter(Boolean)
-  let wildcardRoute: RouteEntry | null = null
-  let best: MatchResult = null
-  let bestScore = -1
-
-  for (const route of routeTable.values()) {
-    if (route.segments.length === 1 && route.segments[0] === '*') {
-      wildcardRoute = route
-      continue
+    private static createNode(): TrieNode {
+        return { children: new Map(), paramChild: null, route: null, wildCardRoute: null }
     }
 
-    if (route.segments.length !== segments.length) continue
+    /**
+     * Inserts a route into the trie based on its path segments.
+     * @param route The route entry to insert.
+     * @param segments The segments of the route's path.
+     * 
+     * @example
+     * router.insert({ id: 'product', path: '/products/:id', tagName: 'product' }, ['products', ':id'])
+     * router.insert({ id: 'about',   path: '/about',        tagName: 'about'   }, ['about'])
+     */
+    insert(route: RouteEntry, segments: string[]): void {
 
-    let match = true
-    let score = 0
-    const params: Record<string, string> = {}
+        if (__DEV__ && this.registry.has(route.id)) {
+            throw new Error(
+                `[xzo/router] Duplicate route id "${route.id}"`,
+            )
+        }
 
-    for (let i = 0; i < route.segments.length; i++) {
-      const seg = route.segments[i]!
-      if (seg.startsWith(':')) {
-        params[seg.slice(1)] = segments[i]!
-      } else if (seg === segments[i]) {
-        score++
-      } else {
-        match = false
-        break
-      }
+        this.registry.set(route.id, route);
+
+        // start from the root
+        let node = this.root;
+
+        for (const segment of segments) {
+            // segment is wildcard,
+            // store the route in the current node and stop processing further segments
+            if (segment === '*') {
+                node.wildCardRoute = route;
+                return;
+            }
+
+            // segment is dynamic,
+            // store the param name and move to the param child node
+            if (segment.startsWith(':')) {
+                if (!node.paramChild) {
+                    // create a new param child node if it doesn't exist
+                    node.paramChild = { name: segment.slice(1), node: Router.createNode() };
+                } else if (__DEV__ && node.paramChild.name !== segment.slice(1)) {
+                    throw new Error(
+                        `[xzo/router] Route conflict: dynamic segment name mismatch. ` +
+                        `":${node.paramChild.name}", already exists on this level`
+                    );
+                }
+                node = node.paramChild.node;
+            } else {
+                // segment is static,
+                // move to the child node corresponding to the segment, creating it if necessary
+                if (!node.children.has(segment)) {
+                    node.children.set(segment, Router.createNode());
+                }
+
+                // get the child for the current segment and move to it
+                const child = node.children.get(segment);
+                if (!child) {
+                    throw new Error(`[xzo/router] Unexpected error: child node for segment "${segment}" should exist`);
+                }
+
+                node = child;
+            }
+        }
+
+        if (__DEV__ && node.route !== null) {
+            throw new Error(
+                `[xzo/router] Route conflict: route with path "${route.path}" already exists. ` +
+                `Existing route path: "${node.route!.path}"`
+            );
+        }
+
+        node.route = route;
     }
 
-    if (match && score > bestScore) {
-      best = { route, params }
-      bestScore = score
-    }
-  }
-
-  return best ?? (wildcardRoute ? { route: wildcardRoute, params: {} } : null)
-}
-
-function navigateByUrl(url: string, replace = false): void {
-  if (replace) {
-    history.replaceState(null, '', url)
-  } else {
-    history.pushState(null, '', url)
-  }
-  path.value = location.pathname
-  query.value = new URLSearchParams(location.search)
-}
-
-// ---------------------------------------------------------------------------
-// Guard runner
-// ---------------------------------------------------------------------------
-async function runGuards(guards: GuardFn[] | undefined): Promise<{ cancel: boolean; redirect?: string }> {
-  if (!guards || guards.length === 0) return { cancel: false }
-  for (const fn of guards) {
-    const result = await fn()
-    if (result === false) return { cancel: true }
-    if (typeof result === 'object' && 'redirect' in result) {
-      return { cancel: true, redirect: result.redirect }
-    }
-  }
-  return { cancel: false }
-}
-// ---------------------------------------------------------------------------
-type NavigateFn = {
-  <Id extends keyof RouteRegistry>(
-    id: Id,
-    ...args: [RouteRegistry[Id]] extends [Record<string, never>]
-      ? [params?: Record<string, never>, opts?: { replace?: boolean }]
-      : [params: RouteRegistry[Id], opts?: { replace?: boolean }]
-  ): Promise<void>
-  (id: string, params?: Record<string, string>, opts?: { replace?: boolean }): Promise<void>
-}
-
-async function navigate(
-  id: string,
-  params?: Record<string, string>,
-  opts?: { replace?: boolean },
-): Promise<void> {
-  const route = routeTable.get(id)
-  if (!route) {
-    if (__DEV__) {
-      throw new Error(
-        `[xzo/router] navigate() — unknown route id "${id}". Registered: ${Array.from(routeTable.keys()).join(', ')}`,
-      )
-    }
-    return
-  }
-
-  let url = route.path
-  if (params) {
-    for (const [key, value] of Object.entries(params)) {
-      url = url.replace(`:${key}`, encodeURIComponent(value))
-    }
-  }
-
-  // -- leave guards for current page --
-  if (activeRouteId) {
-    const leaveResult = await runGuards(routeLeaveGuards.get(activeRouteId))
-    if (leaveResult.cancel) {
-      if (leaveResult.redirect) return navigate(leaveResult.redirect)
-      return
-    }
-  }
-  // -- enter guards for target page --
-  const enterResult = await runGuards(routeEnterGuards.get(id))
-  if (enterResult.cancel) {
-    if (enterResult.redirect) return navigate(enterResult.redirect)
-    return
-  }
-
-  navigateByUrl(url, opts?.replace)
-}
-
-// ---------------------------------------------------------------------------
-// Helpers shared between outlets
-// ---------------------------------------------------------------------------
-function clearRange(start: Comment, end: Comment): void {
-  let cursor = start.nextSibling
-  while (cursor && cursor !== end) {
-    const next = cursor.nextSibling
-    cursor.parentNode?.removeChild(cursor)
-    cursor = next
-  }
-}
-
-// ---------------------------------------------------------------------------
-// routerFactory — each call returns an independent RouterSource
-// ---------------------------------------------------------------------------
-function routerFactory(): RouterSource {
-  const owner = getOwner()
-  const start = document.createComment('[xzo/router outlet]')
-  const end = document.createComment('[/xzo/router outlet]')
-  let currentElement: Element | null = null
-  let currentRouteId: string | null = null
-
-  const dispose = effect(() => {
-    const currentPath = path.value
-
-    // Anchors not yet in DOM (outlet() hasn't been called yet) — bail but
-    // keep `path.value` tracked so the effect re-runs after navigation.
-    if (!end.parentNode) return
-
-    const match = matchRoute(currentPath)
-
-    if (!match) {
-      if (currentElement) {
-        currentElement.remove()
-        currentElement = null
-        currentRouteId = null
-        activeRouteId = null
-      }
-      clearRange(start, end)
-      return
+    /**
+     * Matches a given pathname against the registered routes in the trie.
+     * @param pathname The pathname to match (e.g. "/products/123").
+     * @returns The match result containing the matched route and extracted params, or null if no match is found.
+     * 
+     * @example
+     * router.match('/about')
+     * // → { route: { id: 'about', ... }, params: {} }
+     *
+     * @example
+     * router.match('/products/42/edit')
+     * // → { route: { id: 'product-edit', ... }, params: { id: '42' } }
+     *
+     * @example
+     * router.match('/does-not-exist')
+     * // → null
+     */
+    match(pathname: string): MatchResult | null {
+        // split the pathname into segments, ignoring leading and trailing slashes
+        const segments = pathname.split('/').filter(Boolean);
+        return this.search(this.root, segments, 0, {});
     }
 
-    if (match.route.id === currentRouteId) return
-
-    if (currentElement) {
-      currentElement.remove()
-      currentElement = null
+    /**
+   * Resolves a route entry by id.
+   * Used by navigate() to build the URL without a separate idToPath map.
+   *
+   * @param id - The route id as registered in lib.page()
+   * @returns The route entry, or `undefined` if not found
+   *
+   * @example
+   * router.getById('product-detail')
+   * // → { id: 'product-detail', path: '/products/:id', tagName: 'product-detail' }
+   *
+   * @example
+   * router.getById('unknown')
+   * // → undefined
+   */
+    getById(id: string): RouteEntry | undefined {
+        return this.registry.get(id)
     }
 
-    currentRouteId = match.route.id
-    activeRouteId = match.route.id
-    const el = document.createElement(match.route.tagName)
-    pageParamsMap.set(el, match.params)
-    end.parentNode.insertBefore(el, end)
-    currentElement = el
-  })
-
-  if (owner) {
-    addCleanup(owner, dispose)
-  }
-
-  function outlet(_props?: Record<string, unknown>): Node {
-    const frag = document.createDocumentFragment()
-    frag.appendChild(start)
-    // Always perform initial render here — the effect bailed when there was no parentNode
-    const match = matchRoute(path.value)
-    if (match) {
-      currentRouteId = match.route.id
-      const el = document.createElement(match.route.tagName)
-      pageParamsMap.set(el, match.params)
-      frag.appendChild(el)
-      currentElement = el
+    /**
+    * Returns all registered route ids.
+    * Used in dev to provide helpful error messages in navigate().
+    *
+    * @example
+    * router.registeredIds()
+    * // → ['home', 'products', 'product-detail', 'about']
+    */
+    registeredIds(): string[] {
+        return Array.from(this.registry.keys())
     }
-    frag.appendChild(end)
-    return frag
-  }
 
-  function pending(_props?: { children?: unknown }): Node {
-    return document.createComment('[xzo/router pending]')
-  }
+    /**
+     * Recursively searches for a matching route in the trie.
+     * @param node The current trie node.
+     * @param segments The segments of the path to match.
+     * @param index The current index in the segments array.
+     * @param params The collected parameters from dynamic segments.
+     * @returns The match result if a route is found, otherwise null.
+     * 
+     * @example
+     * // Matching "/users/99/settings":
+     * // index=0 → "users"   (static)
+     * // index=1 → "99"      (paramChild, params={ id: "99" })
+     * // index=2 → "settings"(static)
+     * // index=3 → leaf found
+     */
+    private search(node: TrieNode, segments: string[], index: number, params: Record<string, string>): MatchResult | null {
 
-  function error(_props?: { children?: unknown }): Node {
-    return document.createComment('[xzo/router error]')
-  }
+        // reached the end of the segments to match
+        if (index === segments.length) {
+            if (node.route) {
+                // exact match found, return the route and the collected params
+                return { route: node.route, params };
+            }
+            if (node.wildCardRoute) {
+                // route with wildcard match, return it with the params collected so far
+                return { route: node.wildCardRoute, params };
+            }
+            // no more segments to match, but no route found
+            return null;
+        }
 
-  return { outlet, pending, error }
-}
+        // get the current segment to match
+        const segment = segments[index];
 
-// ---------------------------------------------------------------------------
-// Context extensions — registered once at import time
-// ---------------------------------------------------------------------------
-registerContextExtension('navigate', () => navigate as NavigateFn)
-registerContextExtension('path', () => path)
-registerContextExtension('query', () => query)
-registerContextExtension('params', (_owner, host) => pageParamsMap.get(host as Element) ?? {})
-registerContextExtension('guard', (owner) => {
-  return (phaseOrFn: GuardFn | 'enter' | 'leave', fn?: GuardFn): void => {
-    const phase: 'enter' | 'leave' = typeof phaseOrFn === 'string' ? phaseOrFn : 'enter'
-    const guardFn = typeof phaseOrFn === 'function' ? phaseOrFn : fn!
-    if (phase === 'enter') {
-      if (!enterGuardInitedForOwner.has(owner)) {
-        routeEnterGuards.set(owner.name, [])
-        enterGuardInitedForOwner.add(owner)
-      }
-      routeEnterGuards.get(owner.name)!.push(guardFn)
-    } else {
-      if (!leaveGuardInitedForOwner.has(owner)) {
-        routeLeaveGuards.set(owner.name, [])
-        leaveGuardInitedForOwner.add(owner)
-      }
-      routeLeaveGuards.get(owner.name)!.push(guardFn)
-      addCleanup(owner, () => {
-        const g = routeLeaveGuards.get(owner.name)
-        if (g) { const i = g.indexOf(guardFn); if (i >= 0) g.splice(i, 1) }
-      })
+        // try to match a static segment first
+        const staticChild = node.children.get(segment);
+        if (staticChild) {
+            const result = this.search(staticChild, segments, index + 1, params);
+            if (result) {
+                return result;
+            }
+        }
+
+        // try to match dynamic segment
+        if (node.paramChild) {
+            // call recursively to match the rest of the segments,
+            // and add the current segment as a param
+            const result = this.search(
+                node.paramChild.node,
+                segments,
+                index + 1,
+                { ...params, [node.paramChild.name]: segment }
+            );
+            if (result) {
+                return result;
+            }
+        }
+
+        // try to match wildcard segment
+        if (node.wildCardRoute) {
+            return { route: node.wildCardRoute, params };
+        }
+
+        // no match found for this segment
+        return null;
     }
-  }
-})
-registerContextExtension('redirect', () => {
-  return (id: string): { redirect: string } => ({ redirect: id })
-})
-
-// ---------------------------------------------------------------------------
-// lib.page() — registers a page component and its route
-// ---------------------------------------------------------------------------
-export function page<
-  Id extends string,
-  Path extends string,
->(
-  id: Id,
-  options: { path: Path; lazy?: boolean },
-  factory: (
-    ctx: import('xzo').Context & { params: PathParams<Path> },
-  ) => import('xzo').ComponentResult,
-): void {
-  const tagName = id
-  const segments = compileSegments(options.path)
-
-  routeTable.set(id, {
-    id,
-    path: options.path,
-    segments,
-    tagName,
-  })
-
-  ;(xzoLib as unknown as { define: (name: string, factory: ComponentFactory) => void }).define(
-    tagName,
-    factory as ComponentFactory,
-  )
 }
 
-// ---------------------------------------------------------------------------
-// Extend the xzo lib object at import time
-// ---------------------------------------------------------------------------
-Object.assign(xzoLib, { router: routerFactory, page })
-
-// ---------------------------------------------------------------------------
-// Module augmentation
-// ---------------------------------------------------------------------------
-declare module 'xzo' {
-  interface Lib {
-    router(): RouterSource
-    page<Id extends string, Path extends string>(
-      id: Id,
-      options: { path: Path; lazy?: boolean },
-      factory: (
-        ctx: import('xzo').Context & { params: PathParams<Path> },
-      ) => import('xzo').ComponentResult,
-    ): void
-  }
-  interface Context {
-    navigate: NavigateFn
-    path: typeof path
-    query: typeof query
-    params: Record<string, string>
-    guard(fn: GuardFn): void
-    guard(phase: 'enter' | 'leave', fn: GuardFn): void
-    redirect<Id extends keyof RouteRegistry>(id: Id): { redirect: Id }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Link interception
-// ---------------------------------------------------------------------------
-function interceptLinks(event: MouseEvent): void {
-  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
-    return
-  }
-
-  const anchor = (event.composedPath() as Element[]).find(
-    (el): el is HTMLAnchorElement => el instanceof HTMLAnchorElement,
-  )
-  if (!anchor) return
-  if (anchor.target === '_blank') return
-  if (anchor.hasAttribute('download')) return
-  if (anchor.getAttribute('rel') === 'external') return
-
-  const href = anchor.getAttribute('href')
-  if (!href || href.startsWith('http') || href.startsWith('//') || href.startsWith('mailto:')) {
-    return
-  }
-
-  event.preventDefault()
-  navigateByUrl(href)
-}
-
-// ---------------------------------------------------------------------------
-// popstate — back/forward
-// ---------------------------------------------------------------------------
-window.addEventListener('popstate', () => {
-  path.value = location.pathname
-  query.value = new URLSearchParams(location.search)
-})
-
-document.addEventListener('click', interceptLinks)
+export const router = new Router()  // singleton instance used by the rest of the library
