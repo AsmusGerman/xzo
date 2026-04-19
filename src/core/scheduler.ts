@@ -63,6 +63,10 @@ let currentOwner: Owner | null = null
  * Returns the current owner — the component instance that is currently
  * being initialized. Only reliable during synchronous component setup.
  */
+export function createOwner(name: string, parent: Owner | null, host: Element | null): Owner {
+  return new Owner(name, parent, host)
+}
+
 export function getOwner(): Owner | null {
   return currentOwner
 }
@@ -79,4 +83,28 @@ export function runWithOwner<T>(owner: Owner | null, fn: () => T): T {
   } finally {
     currentOwner = previous
   }
+}
+
+export function setOwnerScope(owner: Owner, scope: Record<string, unknown>): void {
+  owner.setScope(scope)
+}
+
+export function addMountCallback(owner: Owner, callback: () => void): void {
+  owner.addMountCallback(callback)
+}
+
+export function addUnmountCallback(owner: Owner, callback: () => void): void {
+  owner.addUnmountCallback(callback)
+}
+
+export function addCleanup(owner: Owner, cleanup: () => void): void {
+  owner.addCleanup(cleanup)
+}
+
+export function mountOwner(owner: Owner): void {
+  owner.mount()
+}
+
+export function disposeOwner(owner: Owner): void {
+  owner.dispose()
 }

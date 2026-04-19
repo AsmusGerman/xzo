@@ -210,7 +210,7 @@ export function createContext(owner: Owner, host: Element): Context<{}> {
       // we just need to ensure cleanup is registered with the component's lifecycle
       const dispose = effect(callback)
       // Register cleanup to run on unmount
-      addCleanup(owner, dispose)
+      owner.addCleanup(dispose)
       return dispose
     },
     /**
@@ -311,6 +311,7 @@ export function createContext(owner: Owner, host: Element): Context<{}> {
      * @returns A cleanup function to remove the event listener.
      */
     listen(eventName: string, handler: EventListener, options?: AddEventListenerOptions & { target?: EventTarget }) {
+      // TODO: use an abort controller, which will be called on component unMount ensuring listener teardown
       const target = options?.target ?? host
       target.addEventListener(eventName, handler, options)
 
