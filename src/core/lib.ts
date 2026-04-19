@@ -96,6 +96,13 @@ function buildServiceProviders(result: Record<string, unknown>): Record<string, 
   return providers
 }
 
+/**
+ * 
+ * @param element 
+ * The element that is being mounted
+ * @returns {Owner | null}
+ * Returns the parent component of the current element
+ */
 function findParentOwner(element: Element): Owner | null {
   const explicitOwner = (element as Element & { _$owner?: Owner })._$owner
   if (explicitOwner) {
@@ -103,6 +110,7 @@ function findParentOwner(element: Element): Owner | null {
   }
 
   let cursor = element.parentElement
+  // Will ignore anything not mounted by xzo if I understood correctly
   while (cursor) {
     const instance = mounted.get(cursor)
     if (instance) {
@@ -178,7 +186,15 @@ function disposeElement(element: Element): void {
   }
 }
 
+/**
+ * Recursive function to traverse through the node tree and its children applying a callback
+ * @param node 
+ *  Current node 
+ * @param visitor 
+ *  Callback that is meant to run logic on the current node
+ */
 function visitElements(node: Node, visitor: (element: Element) => void): void {
+  // Base case for the recursive function to avoid infinite loop
   if (!(node instanceof Element)) {
     return
   }

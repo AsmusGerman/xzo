@@ -295,6 +295,7 @@ export function createContext(owner: Owner, host: Element): Context {
      * @returns A cleanup function to remove the event listener.
      */
     listen(eventName: string, handler: EventListener, options?: AddEventListenerOptions & { target?: EventTarget }) {
+      // TODO: use an abort controller, which will be called on component unMount ensuring listener teardown
       const target = options?.target ?? host
       target.addEventListener(eventName, handler, options)
 

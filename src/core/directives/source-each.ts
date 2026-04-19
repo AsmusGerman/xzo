@@ -16,6 +16,7 @@ function unwrap<T>(value: T): T {
 
 function createBranch(condition: () => boolean, render: () => Renderable): Node {
   const owner = getOwner()
+  // Create Invisible section marked with comments
   const start = document.createComment('xz-source-start')
   const end = document.createComment('xz-source-end')
   const fragment = document.createDocumentFragment()
