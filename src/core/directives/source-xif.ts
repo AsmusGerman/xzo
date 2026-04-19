@@ -2,29 +2,6 @@ import { effect } from '@preact/signals-core';
 import { addCleanup, getOwner } from '../scheduler';
 import { clearRange, commitRange } from '../../dom';
 
-export function xif() {
-  const owner = getOwner();
-  if (!owner) {
-    throw new Error('[xzo] lib.xif() must be called during component setup.');
-  }
-
-  let sharedCondition: (() => boolean) | null = null;
-
-  return {
-    if: (props: { when: () => boolean; children?: Renderable }) => {
-      sharedCondition = props.when;
-      return createBranch(props.when, () => props.children);
-    },
-    else: (props?: { children?: Renderable }) => {
-      if (!sharedCondition) {
-        throw new Error('[xzo] <test.else> must follow <test.if when={...}>');
-      }
-      const condition = sharedCondition;
-      return createBranch(() => !condition(), () => props?.children ?? null);
-    },
-  };
-}
-
 type Renderable = unknown | undefined;
 
 let _lastCondition: (() => boolean) | null = null;
