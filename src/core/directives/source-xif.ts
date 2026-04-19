@@ -4,7 +4,6 @@ import { clearRange, commitRange } from '../../dom';
 
 export function xif(
   condition: () => boolean,
-  render: () => Renderable,
   renderElse?: () => Renderable,
 ) {
   const owner = getOwner();
@@ -13,8 +12,8 @@ export function xif(
   }
 
   return {
-    if: () => createBranch(condition, render),
-    else: () => createBranch(() => !condition(), renderElse ?? (() => null)),
+    if: (props?: { children?: Renderable }) => createBranch(condition, () => props?.children),
+    else: (props?: { children?: Renderable }) => createBranch(() => !condition(), () => props?.children ?? (renderElse ? renderElse() : null)),
   };
 }
 

@@ -349,6 +349,7 @@ export interface Lib {
   init(rootNode?: Document | Element): void
   each: typeof each
   async: typeof createAsyncSource
+  xif:  typeof xif
 }
 
 export const lib = {

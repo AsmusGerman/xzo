@@ -2,7 +2,7 @@ import { lib, computed, css } from 'xzo';
 import type { AnySignal } from 'xzo';
 
 lib.define('checkout-button', (ctx) => {
-  const { total } = ctx.inject('app') as {
+  const { total } = ctx.inject((reg) => reg.components.app) as {
     total: AnySignal<number>;
   };
 
@@ -11,23 +11,22 @@ lib.define('checkout-button', (ctx) => {
     console.log('[checkout-button] mounted');
   });
 
-  const test = lib.xif(
-    () => !checkoutDisabled.value,
-    () => (
-      <button class='checkout-btn' onclick={() => ctx.emit('cart-checkout')}>
-        Complete checkout
-      </button>
-    ),
-    () => (
-      <div>Add items to be able to checkout</div>
-    )
-  );
+  const test = lib.xif(() => !checkoutDisabled.value);
 
   return {
     template: (
       <div>
-        <test.if />
-        <test.else />
+        <test.if>
+          <button
+            class='checkout-btn'
+            onclick={() => ctx.emit('cart-checkout')}
+          >
+            Complete checkout
+          </button>
+        </test.if>
+        <test.else>
+          <div>Add items to be able to checkout</div>
+        </test.else>
       </div>
     ),
     styles: css`
