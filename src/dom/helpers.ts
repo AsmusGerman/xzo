@@ -1,5 +1,3 @@
-type Renderable = unknown;
-
 function toNode(value: Renderable): Node | null {
   if (value === null || value === undefined || value === false) {
     return null;
