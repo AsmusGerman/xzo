@@ -4,8 +4,6 @@ import { isSignal, isWritableSignal } from '../../types'
 import { addCleanup, getOwner, runWithOwner } from '../scheduler'
 import { clearRange, commitRange } from '../../dom'
 
-type Renderable = unknown
-
 function unwrap<T>(value: T): T {
   if (isSignal(value)) {
     return value.value as T

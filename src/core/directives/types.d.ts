@@ -1,0 +1,1 @@
+type Renderable = unknown | undefined;

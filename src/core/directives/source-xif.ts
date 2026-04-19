@@ -2,7 +2,6 @@ import { effect } from '@preact/signals-core';
 import { addCleanup, getOwner } from '../scheduler';
 import { clearRange, commitRange } from '../../dom';
 
-type Renderable = unknown | undefined;
 
 let _lastCondition: (() => boolean) | null = null;
 
