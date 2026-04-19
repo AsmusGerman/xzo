@@ -6,12 +6,12 @@ type Renderable = unknown | undefined;
 
 let _lastCondition: (() => boolean) | null = null;
 
-export function XIf(props: { when: () => boolean; children?: Renderable }) {
+export function xIf(props: { when: () => boolean; children?: Renderable }) {
   _lastCondition = props.when;
   return createBranch(props.when, () => props.children);
 }
 
-export function XElse(props?: { children?: Renderable }) {
+export function xElse(props?: { children?: Renderable }) {
   if (!_lastCondition) {
     throw new Error('[xzo] <XElse> must immediately follow <XIf when={...}>');
   }

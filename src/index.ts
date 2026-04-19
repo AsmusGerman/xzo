@@ -16,7 +16,7 @@ export type {
 } from './types'
 export type { Lib } from './core/lib'
 export { addCleanup, getOwner } from './core/scheduler'
-export { XIf, XElse } from './core/directives'
+export { xIf, xElse } from './core/directives'
 export { lib, signal, computed, batch }
 export const untrack = untracked
 
