@@ -1,4 +1,4 @@
-import { lib, computed, css } from 'xzo';
+import { lib, computed, css, XIf, XElse } from 'xzo';
 import type { AnySignal } from 'xzo';
 
 lib.define('checkout-button', (ctx) => {
@@ -11,22 +11,20 @@ lib.define('checkout-button', (ctx) => {
     console.log('[checkout-button] mounted');
   });
 
-  const test = lib.xif(() => !checkoutDisabled.value);
-
   return {
     template: (
       <div>
-        <test.if>
+        <XIf when={() => !checkoutDisabled.value}>
           <button
             class='checkout-btn'
             onclick={() => ctx.emit('cart-checkout')}
           >
             Complete checkout
           </button>
-        </test.if>
-        <test.else>
+        </XIf>
+        <XElse>
           <div>Add items to be able to checkout</div>
-        </test.else>
+        </XElse>
       </div>
     ),
     styles: css`
