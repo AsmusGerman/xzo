@@ -12,11 +12,15 @@ export async function runGuards(
     guards: GuardFn[] | undefined,
 ): Promise<{ cancel: boolean; redirect?: string }> {
     if (!guards || guards.length === 0) return { cancel: false }
-    for (const fn of guards) {
-        const result = await fn()
-        if (result === false) return { cancel: true }
-        if (typeof result === 'object' && 'redirect' in result) {
-            return { cancel: true, redirect: result.redirect }
+    const results = await Promise.allSettled(
+        guards.map((fn) => Promise.resolve().then(fn)),
+    )
+
+    for (const result of results) {
+        if (result.status === 'rejected') return { cancel: true }
+        if (result.value === false) return { cancel: true }
+        if (typeof result.value === 'object' && 'redirect' in result.value) {
+            return { cancel: true, redirect: result.value.redirect }
         }
     }
     return { cancel: false }
@@ -37,18 +41,22 @@ export function registerGuard(
             enterGuardInitedForOwner.add(owner)
         }
         routeEnterGuards.get(owner.name)!.push(guardFn)
-    } else {
-        if (!leaveGuardInitedForOwner.has(owner)) {
-            routeLeaveGuards.set(owner.name, [])
-            leaveGuardInitedForOwner.add(owner)
-        }
-        routeLeaveGuards.get(owner.name)!.push(guardFn)
-        addCleanup(owner, () => {
-            const g = routeLeaveGuards.get(owner.name)
-            if (g) {
-                const i = g.indexOf(guardFn)
-                if (i >= 0) g.splice(i, 1)
-            }
-        })
+        return;
+
     }
+
+    if (!leaveGuardInitedForOwner.has(owner)) {
+        routeLeaveGuards.set(owner.name, [])
+        leaveGuardInitedForOwner.add(owner)
+    }
+
+    routeLeaveGuards.get(owner.name)!.push(guardFn)
+
+    addCleanup(owner, () => {
+        const g = routeLeaveGuards.get(owner.name)
+        if (g) {
+            const i = g.indexOf(guardFn)
+            if (i >= 0) g.splice(i, 1)
+        }
+    })
 }
