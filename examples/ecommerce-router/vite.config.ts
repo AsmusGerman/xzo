@@ -3,25 +3,15 @@ import { defineConfig } from 'vite'
 import babel from '@rolldown/plugin-babel'
 
 export default defineConfig(async () => ({
-  root: fileURLToPath(new URL('./demo', import.meta.url)),
+  root: fileURLToPath(new URL('.', import.meta.url)),
   define: {
-    // Inject __DEV__ global for conditional code paths in the library and demo components
-    // todo: replace with environment variable for production builds
     __DEV__: JSON.stringify(true),
   },
   resolve: {
     alias: [
       {
         find: /^@xzo\/router$/,
-        replacement: fileURLToPath(new URL('./packages/router/src/index.ts', import.meta.url)),
-      },
-      {
-        find: /^xzo\/dom$/,
-        replacement: fileURLToPath(new URL('./src/dom/index.ts', import.meta.url)),
-      },
-      {
-        find: /^xzo$/,
-        replacement: fileURLToPath(new URL('./src/index.ts', import.meta.url)),
+        replacement: fileURLToPath(new URL('../../packages/router/src/index.ts', import.meta.url)),
       },
     ],
   },

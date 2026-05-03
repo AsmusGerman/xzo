@@ -1,0 +1,14 @@
+{
+  "name": "xzo-example-ecommerce-router",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "xzo": "file:../..",
+    "@xzo/router": "file:../../packages/router"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "bunx --bun tsc --noEmit"
+  }
+}

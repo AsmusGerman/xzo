@@ -1,0 +1,11 @@
+{
+  "name": "@xzo/router",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@preact/signals-core": "^1.14.1",
+    "xzo": "file:../.."
+  }
+}
