@@ -11,7 +11,7 @@ lib.define('product-item', (ctx) => {
   const description = computed(() => product.value.description)
   const imagePath = computed(() => product.value.imagePath)
 
-  const { cart } = ctx.inject('app') as { cart: AnySignal<Product[]> }
+  const { cart } = ctx.inject((reg) => reg.components.app) as { cart: AnySignal<Product[]> }
   const added = signal(false)
 
   const image = lib.async(async () => {

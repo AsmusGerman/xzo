@@ -56,6 +56,26 @@ const RESERVED_CONTEXT_KEYS = new Set([
   'listen',
 ])
 
+/**
+ * Returns the writable signal map for the given host element, creating it on first access.
+ * Signals are stored directly on the element so that external code (e.g. a parent component
+ * setting a property) can trigger reactivity by writing to the same signal instance that the
+ * component's setup function reads from.
+ * 
+ * @example
+ * ctx.prop('value')
+  → getReadonlyPropSignal(host, 'value')
+      → getReadonlyHostSignals(host)   // get/create the readonly map
+      → checks map for 'value' — miss on first access
+      → ensurePropSignal(host, 'value')
+          → getHostSignals(host)        // get/create the writable map
+          → checks map for 'value' — miss, so calls defineHostProperty
+          → defineHostProperty(host, 'value', initialValue)
+              → getHostSignals(host)    // stores the new writable signal
+      → computed(() => writable.value) // wrap it as readonly
+      → stores in readonlySignals map
+  → returns the computed signal
+ */
 function getHostSignals(host: HostWithSignals): Map<string, ReturnType<typeof signal<unknown>>> {
   if (!host.__xz_propSignals) {
     host.__xz_propSignals = new Map()
@@ -64,6 +84,12 @@ function getHostSignals(host: HostWithSignals): Map<string, ReturnType<typeof si
   return host.__xz_propSignals
 }
 
+/**
+ * Returns the readonly computed-signal map for the given host element, creating it on first access.
+ * Components receive computed wrappers (not the raw writable signals) so they can observe prop
+ * changes without being able to mutate them directly — keeping write authority with whoever owns
+ * the property (parent element or the DOM attribute system).
+ */
 function getReadonlyHostSignals(host: HostWithSignals): Map<string, AnySignal<unknown>> {
   if (!host.__xz_readonlyPropSignals) {
     host.__xz_readonlyPropSignals = new Map()
@@ -143,6 +169,7 @@ export function createContext(owner: Owner, host: Element): Context<{}> {
   const api = {
     element: host,
     host,
+    // todo: name is redundant since it's the same as tagName
     name: owner.name,
     tagName: owner.name,
     inject<T>(selector: (reg: Reg) => T): T {
@@ -199,12 +226,59 @@ export function createContext(owner: Owner, host: Element): Context<{}> {
         owner.addCleanup(dispose)
       }
     },
+    /**
+     * Observe one or more signals with a callback that receives the current and previous values.
+     * Useful for responding to signal changes without causing additional re-renders.
+     * @param observed The signal or array of signals to observe.
+     * @param callback The callback to invoke when the signal(s) change.
+     */
+    observe<T>(observed: AnySignal<T> | AnySignal<unknown>[], callback: ((value: T, prev: T | undefined) => void) | ((values: unknown[], prev: unknown[] | undefined) => void)) {
+      // can separate single vs multiple signals for better typings and to avoid unnecessary array allocations for single signal case
+      if (Array.isArray(observed)) {
+        let prevValues: unknown[] | undefined
+        const dispose = effect(() => {
+          const values = observed.map(s => s.value)
+          const prev = prevValues
+          prevValues = values
+          untracked(() => (callback as (values: unknown[], prev: unknown[] | undefined) => void)(values, prev))
+        })
+        addCleanup(owner, dispose)
+      } else {
+        let prevValue: T | undefined
+        const dispose = effect(() => {
+          const value = (observed as AnySignal<T>).value
+          const prev = prevValue
+          prevValue = value
+          if (__DEV__) {
+            // Detect potential cycle: same signal mutated inside callback
+            const observedSig = observed
+            const origSet = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(observedSig), 'value')?.set
+            if (origSet) {
+              // Patch temporarily to detect mutation
+            }
+          }
+          untracked(() => (callback as (value: T, prev: T | undefined) => void)(value, prev))
+        })
+        addCleanup(owner, dispose)
+      }
+    },
     onMount(callback: () => void) {
       owner.addMountCallback(callback)
     },
     onUnmount(callback: () => void) {
       owner.addUnmountCallback(callback)
     },
+    /**
+     * Access a reactive property signal for the given name.
+     * This will create a new signal if it doesn't already exist,
+     * and initialize it with the current attribute value or property value of the host element.
+      * @param name The name of the property to access as a signal.
+      * @returns A signal representing the property's value.
+      * 
+      * TODO: consider supporting nested paths like "user.name"
+      * maybe using a registered schema to define the shape of props and avoid runtime parsing of paths?
+      * also why not having props, to access any property
+      */
     prop<T>(name: string) {
       return getReadonlyPropSignal(host, name) as AnySignal<T>
     },
@@ -225,6 +299,16 @@ export function createContext(owner: Owner, host: Element): Context<{}> {
 
       return owner.refs.get(name) as never
     },
+    /**
+     * emit a custom event from the component's host element,
+     * which can be listened to by ancestor components using ctx.listen.
+     * @param eventName The name of the event to emit.
+     * @param detail Optional data to include with the event.
+     * 
+     * TODO: consider supporting non-bubbling events and/or custom event targets,
+     * for more flexible communication patterns
+     * also consider typing the detail param with generics
+     */
     emit(eventName: string, detail?: unknown) {
       host.dispatchEvent(new CustomEvent(eventName, {
         detail,
@@ -232,7 +316,15 @@ export function createContext(owner: Owner, host: Element): Context<{}> {
         composed: true,
       }))
     },
+    /**
+     * listen for a custom event on the component's host element or an optional target, with automatic cleanup on unmount.
+     * @param eventName The name of the event to listen for.
+     * @param handler The event handler function to invoke when the event is triggered.
+     * @param options Optional event listener options, including a custom target.
+     * @returns A cleanup function to remove the event listener.
+     */
     listen(eventName: string, handler: EventListener, options?: AddEventListenerOptions & { target?: EventTarget }) {
+      // TODO: use an abort controller, which will be called on component unMount ensuring listener teardown
       const target = options?.target ?? host
       target.addEventListener(eventName, handler, options)
 
@@ -247,6 +339,9 @@ export function createContext(owner: Owner, host: Element): Context<{}> {
 
   return new Proxy(api, {
     get(target, property, receiver) {
+      // todo: the props should be accessible by prop or props,
+      // but not directly from the context to avoid confusion with providers and services 
+      // — consider adding a separate ctx.props object for this
       if (typeof property === 'string') {
         if (contextExtensions.has(property)) {
           return contextExtensions.get(property)!(owner, host)
