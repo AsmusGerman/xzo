@@ -3,7 +3,7 @@ import { defineConfig } from 'vite'
 import babel from '@rolldown/plugin-babel'
 
 export default defineConfig(async () => ({
-  root: fileURLToPath(new URL('./demo', import.meta.url)),
+  root: fileURLToPath(new URL('./examples/storefront', import.meta.url)),
   define: {
     // Inject __DEV__ global for conditional code paths in the library and demo components
     // todo: replace with environment variable for production builds
