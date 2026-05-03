@@ -1,4 +1,3 @@
-import { computed } from '@preact/signals-core'
 import { css, lib, signal } from 'xzo'
 import type { Product } from './types'
 
@@ -41,7 +40,6 @@ lib.define('product-list', () => {
     },
   ])
 
-  const count = computed(() => products.value.length)
   const source = lib.each(() => products.value, (product) => product.id)
 
   return {

@@ -6,6 +6,6 @@
   },
   "dependencies": {
     "@preact/signals-core": "^1.14.1",
-    "xzo": "workspace:*"
+    "xzo": "file:../.."
   }
 }

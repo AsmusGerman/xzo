@@ -1,6 +1,6 @@
 import { css, lib } from 'xzo'
-import type { AnySignal } from 'xzo'
-import type { Product } from './types'
+import '@xzo/router'
+import type { Product } from '../components/types'
 
 lib.page('page-home', { path: '/' }, (ctx) => {
     const cart = ctx.inject(reg => reg.services.cart)

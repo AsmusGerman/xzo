@@ -7,8 +7,8 @@ import './components/App'
 import './components/ProductList'
 import './components/ProductItem'
 import './components/CartSummary'
-import './components/PageHome'
-import './components/PageCheckoutConfirm'
+import './pages/PageHome'
+import './pages/PageCheckoutConfirm'
 
 type LogEntry = { id: number; text: string }
 

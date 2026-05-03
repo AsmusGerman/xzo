@@ -1,5 +1,6 @@
 import { computed } from '@preact/signals-core'
 import { css, lib } from 'xzo'
+import '@xzo/router'
 
 lib.page('page-checkout-confirm', { path: '/checkout/confirm' }, (ctx) => {
   const { lastCheckout } = ctx.inject(reg => reg.services.cart)

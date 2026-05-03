@@ -1,5 +1,4 @@
 import { css, lib, computed } from "xzo";
-import type { Product } from "./types";
 
 lib.define("cart-summary", (ctx) => {
   const { cart, total, totalPrice, checkoutMessage } = ctx.inject(reg => reg.services.cart);

@@ -1,6 +1,6 @@
 import { addCleanup } from 'xzo'
+import type { Owner } from 'xzo'
 import type { GuardFn, GuardPhase } from './types'
-import type { Owner } from '../../../src/core/scheduler'
 
 export const routeEnterGuards = new Map<string, GuardFn[]>()
 export const routeLeaveGuards = new Map<string, GuardFn[]>()

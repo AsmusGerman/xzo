@@ -1,4 +1,5 @@
 import { css, lib } from 'xzo'
+import '@xzo/router'
 
 lib.root('app', (ctx) => {
   const logger = ctx.inject(reg => reg.services.logger);
