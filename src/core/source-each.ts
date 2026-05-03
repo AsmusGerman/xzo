@@ -1,7 +1,7 @@
 import { computed, effect } from '@preact/signals-core'
 import type { AnySignal, EachOptions, EachSource, Key } from '../types'
 import { isSignal, isWritableSignal } from '../types'
-import { addCleanup, getOwner, runWithOwner } from './scheduler'
+import { getOwner, runWithOwner } from './scheduler'
 
 type Renderable = unknown
 
@@ -75,7 +75,7 @@ function createBranch(condition: () => boolean, render: () => Renderable): Node 
   })
 
   if (owner) {
-    addCleanup(owner, dispose)
+    owner.addCleanup(dispose)
   }
 
   return fragment
@@ -88,8 +88,8 @@ function createSelectorContext(owner: NonNullable<ReturnType<typeof getOwner>>):
         return undefined
       }
 
-      if (property in owner.providers) {
-        return unwrap(owner.providers[property])
+      if (property in owner.scope) {
+        return unwrap(owner.scope[property])
       }
 
       if (owner.host) {

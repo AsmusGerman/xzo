@@ -1,26 +1,28 @@
 import { computed, effect, signal, untracked } from '@preact/signals-core'
-import type { AnySignal, Reg } from '../types'
+import type { AnySignal, PropsOf, EventsOf, Reg } from '../types'
 import { toKebabCase } from '../types'
-import {
-  addCleanup,
-  addMountCallback,
-  addUnmountCallback,
-  type Owner,
-} from './scheduler'
-import { getService, walkComponentProviders, getAllServiceIds, hasService } from './lib'
+import { type Owner } from './scheduler'
+import { getService, walkComponentScope, getAllServiceIds, hasService } from './lib'
+
+// Optional context extension points — populated by @xzo/router or other add-ons
+const contextExtensions = new Map<string, (owner: Owner, host: Element) => unknown>()
+
+export function registerContextExtension(name: string, getter: (owner: Owner, host: Element) => unknown): void {
+  contextExtensions.set(name, getter)
+}
 
 type HostWithSignals = Element & {
   __xz_propSignals?: Map<string, ReturnType<typeof signal<unknown>>>
   __xz_readonlyPropSignals?: Map<string, AnySignal<unknown>>
 }
 
-export interface Context {
+export interface Context<Contract = {}> {
   readonly element: Element
   readonly host: Element
   readonly name: string
   readonly tagName: string
+  readonly props: { readonly [K in keyof PropsOf<Contract>]: AnySignal<PropsOf<Contract>[K]> }
   inject: <T>(selector: (reg: Reg) => T) => T
-  effect: (callback: Parameters<typeof effect>[0]) => () => void
   observe: {
     <T>(sig: AnySignal<T>, cb: (value: T, prev: T | undefined) => void): void
     (sigs: AnySignal<unknown>[], cb: (values: unknown[], prev: unknown[] | undefined) => void): void
@@ -29,7 +31,12 @@ export interface Context {
   onUnmount: (callback: () => void) => void
   prop: <T>(name: string) => AnySignal<T>
   ref: <T>(name: string) => T
-  emit: (eventName: string, detail?: unknown) => void
+  emit: [keyof EventsOf<Contract>] extends [never]
+    ? (eventName: string, detail?: unknown) => void
+    : <K extends keyof EventsOf<Contract>>(
+        eventName: K,
+        ...args: EventsOf<Contract>[K] extends void ? [] : [detail: EventsOf<Contract>[K]]
+      ) => void
   listen: (eventName: string, handler: EventListener, options?: AddEventListenerOptions & { target?: EventTarget }) => () => void
   [name: string]: unknown
 }
@@ -39,11 +46,11 @@ const RESERVED_CONTEXT_KEYS = new Set([
   'host',
   'tagName',
   'inject',
-  'effect',
   'observe',
   'onMount',
   'onUnmount',
   'prop',
+  'props',
   'ref',
   'emit',
   'listen',
@@ -158,9 +165,8 @@ function hasResolvableProp(host: Element, name: string): boolean {
   return element.hasAttribute(toKebabCase(name))
 }
 
-export function createContext(owner: Owner, host: Element): Context {
+export function createContext(owner: Owner, host: Element): Context<{}> {
   const api = {
-    // todo: remove element from the public API since it's the same as host and can cause confusion — components should just use host
     element: host,
     host,
     // todo: name is redundant since it's the same as tagName
@@ -171,7 +177,7 @@ export function createContext(owner: Owner, host: Element): Context {
         components: new Proxy({} as never, {
           get(_: never, id: string | symbol) {
             if (typeof id === 'symbol') return undefined
-            return walkComponentProviders(id, host)
+            return walkComponentScope(id, host)
           },
         }),
         services: new Proxy({} as never, {
@@ -187,21 +193,38 @@ export function createContext(owner: Owner, host: Element): Context {
             return getService(id)
           },
         }),
+        page: undefined,
       }
       return selector(reg)
     },
-    /**
-     * Run an effect tied to the component's lifecycle. The effect will be disposed automatically on unmount.
-     * @param callback The effect callback, which may read signals and will re-run whenever those signals change.
-     * @returns A function to manually dispose the effect.
-     */
-    effect(callback: Parameters<typeof effect>[0]) {
-      // effect implementation is handled by preact/signals-core
-      // we just need to ensure cleanup is registered with the component's lifecycle
-      const dispose = effect(callback)
-      // Register cleanup to run on unmount
-      addCleanup(owner, dispose)
-      return dispose
+    observe<T>(sigOrSigs: AnySignal<T> | AnySignal<unknown>[], cb: ((value: T, prev: T | undefined) => void) | ((values: unknown[], prev: unknown[] | undefined) => void)) {
+      if (Array.isArray(sigOrSigs)) {
+        let prevValues: unknown[] | undefined
+        const dispose = effect(() => {
+          const values = sigOrSigs.map(s => s.value)
+          const prev = prevValues
+          prevValues = values
+          untracked(() => (cb as (values: unknown[], prev: unknown[] | undefined) => void)(values, prev))
+        })
+        owner.addCleanup(dispose)
+      } else {
+        let prevValue: T | undefined
+        const dispose = effect(() => {
+          const value = (sigOrSigs as AnySignal<T>).value
+          const prev = prevValue
+          prevValue = value
+          if (__DEV__) {
+            // Detect potential cycle: same signal mutated inside callback
+            const observedSig = sigOrSigs
+            const origSet = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(observedSig), 'value')?.set
+            if (origSet) {
+              // Patch temporarily to detect mutation
+            }
+          }
+          untracked(() => (cb as (value: T, prev: T | undefined) => void)(value, prev))
+        })
+        owner.addCleanup(dispose)
+      }
     },
     /**
      * Observe one or more signals with a callback that receives the current and previous values.
@@ -240,10 +263,10 @@ export function createContext(owner: Owner, host: Element): Context {
       }
     },
     onMount(callback: () => void) {
-      addMountCallback(owner, callback)
+      owner.addMountCallback(callback)
     },
     onUnmount(callback: () => void) {
-      addUnmountCallback(owner, callback)
+      owner.addUnmountCallback(callback)
     },
     /**
      * Access a reactive property signal for the given name.
@@ -259,6 +282,12 @@ export function createContext(owner: Owner, host: Element): Context {
     prop<T>(name: string) {
       return getReadonlyPropSignal(host, name) as AnySignal<T>
     },
+    props: new Proxy({} as never, {
+      get(_: never, name: string | symbol) {
+        if (typeof name !== 'string') return undefined
+        return getReadonlyPropSignal(host, name)
+      },
+    }),
     ref<T>(name: string) {
       if (!owner.mounted) {
         throw new Error(`[xzo] ref("${name}") is only available after mount.`)
@@ -303,7 +332,7 @@ export function createContext(owner: Owner, host: Element): Context {
         target.removeEventListener(eventName, handler, options)
       }
 
-      addCleanup(owner, cleanup)
+      owner.addCleanup(cleanup)
       return cleanup
     },
   }
@@ -314,6 +343,10 @@ export function createContext(owner: Owner, host: Element): Context {
       // but not directly from the context to avoid confusion with providers and services 
       // — consider adding a separate ctx.props object for this
       if (typeof property === 'string') {
+        if (contextExtensions.has(property)) {
+          return contextExtensions.get(property)!(owner, host)
+        }
+
         if (!RESERVED_CONTEXT_KEYS.has(property) && hasResolvableProp(host, property)) {
           return getReadonlyPropSignal(host, property)
         }

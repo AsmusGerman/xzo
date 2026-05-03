@@ -2,6 +2,11 @@ declare global {
   // Injected by Vite define — true in dev, false in production builds
   const __DEV__: boolean
 
+  /** Augment this interface to register typed JSX for custom elements:
+   *  declare global { interface IntrinsicElementsRegistry { 'my-el': PropsOf<MyContract> } }
+   */
+  interface IntrinsicElementsRegistry {}
+
   namespace JSX {
     type Element = Node
 
@@ -13,7 +18,7 @@ declare global {
       [name: string]: unknown
     }
 
-    interface IntrinsicElements {
+    interface IntrinsicElements extends IntrinsicElementsRegistry {
       [name: string]: Record<string, unknown>
     }
   }

@@ -2,15 +2,7 @@ import type { ComponentFactory, ComponentResult } from '../types'
 import { each } from './source-each'
 import { createAsyncSource } from './source-async'
 import { createContext, ensurePropSignal } from './context'
-import {
-  createOwner,
-  disposeOwner,
-  getOwner,
-  mountOwner,
-  runWithOwner,
-  setOwnerProviders,
-  type Owner,
-} from './scheduler'
+import { Owner, getOwner, runWithOwner } from './scheduler'
 import { applyScope, injectStyles } from './styles'
 
 type MountedInstance = {
@@ -29,72 +21,36 @@ const componentTable = new WeakMap<Element, Map<string, unknown>>()
 const services = new Map<string, Record<string, unknown> | ServiceFactory>()
 let observer: MutationObserver | null = null
 
-/**
- * Builds the providers object for a component from its result, separating out reserved keys.
- * The "scope" property is merged into the top-level providers for convenience, but it's not
- * required to be used — it's just an optional namespacing mechanism.
- * 
- * @example
- * 
- * lib.define('app', (ctx) => {
-    const cart = signal([])
-    const total = computed(() => cart.value.length)
-    return { template, cart, total }  // cart and total are directly injectable
-  })
- * 
- * TODO: consider changing the name from providers to scope,
- * since the "providers" terminology is a bit overloaded and can be confused with context providers in other frameworks.
- * The idea of "providing" values to descendants is still there, but it might be clearer to just call it scope.
- */
-function buildProviders(result: ComponentResult): Record<string, unknown> {
-  const providers: Record<string, unknown> = {}
+function buildScope(result: ComponentResult): Record<string, unknown> {
+  const scope: Record<string, unknown> = {}
 
   for (const [key, value] of Object.entries(result)) {
     if (!RESERVED_KEYS.has(key)) {
-      providers[key] = value
+      scope[key] = value
     }
   }
 
   if (result.scope) {
-    Object.assign(providers, result.scope)
+    Object.assign(scope, result.scope)
   }
 
-  return providers
+  return scope
 }
 
-/**
- * Similar to buildProviders,
- * but only includes non-reserved keys that are functions (e.g. signals, computed)
- * since services are meant to be injected and used directly, not as a context object.
- * 
- * @example
- * lib.service('logger', () => {
-    const entries = signal<string[]>([])
-
-    function log(message: string) {
-      entries.value = [...entries.value, message]
-    }
-
-    return { entries, log }
-  })
-
- * After buildServiceProviders runs, what gets stored and later returned by ctx.inject(reg => reg.services.logger) is:
- * { entries: Signal<string[]>, log: (message: string) => void }
- */
-function buildServiceProviders(result: Record<string, unknown>): Record<string, unknown> {
-  const providers: Record<string, unknown> = {}
+function buildServiceScope(result: Record<string, unknown>): Record<string, unknown> {
+  const scope: Record<string, unknown> = {}
 
   for (const [key, value] of Object.entries(result)) {
     if (!RESERVED_KEYS.has(key)) {
-      providers[key] = value
+      scope[key] = value
     }
   }
 
   if (result.scope && typeof result.scope === 'object') {
-    Object.assign(providers, result.scope as Record<string, unknown>)
+    Object.assign(scope, result.scope as Record<string, unknown>)
   }
 
-  return providers
+  return scope
 }
 
 /**
@@ -153,14 +109,14 @@ function mountElement(element: Element): void {
     }
   }
 
-  const owner = createOwner(name, findParentOwner(element), element)
+  const owner = new Owner(name, findParentOwner(element), element)
   mounted.set(element, { owner })
   if (rootDefinitions.has(name)) {
     mountedRoots.set(name, element)
   }
 
   const result = runWithOwner(owner, () => definition(createContext(owner, element)))
-  setOwnerProviders(owner, buildProviders(result))
+  owner.setScope(buildScope(result))
 
   if (result.styles) {
     injectStyles(name, result.styles)
@@ -168,7 +124,7 @@ function mountElement(element: Element): void {
   }
 
   element.replaceChildren(normalizeTemplate(result.template))
-  mountOwner(owner)
+  owner.mount()
   scanSubtree(element)
 }
 
@@ -178,7 +134,7 @@ function disposeElement(element: Element): void {
     return
   }
 
-  disposeOwner(instance.owner)
+  instance.owner.dispose()
   mounted.delete(element)
 
   const name = element.localName
@@ -234,7 +190,7 @@ export function service(name: string, factory: ServiceFactory): void {
 function initServices(): void {
   for (const [name, entry] of services) {
     if (typeof entry === 'function') {
-      services.set(name, buildServiceProviders(entry()))
+      services.set(name, buildServiceScope(entry()))
     }
   }
 }
@@ -258,14 +214,7 @@ export function getService(name?: string): Record<string, unknown> {
   return existing
 }
 
-/**
- * Walks up the DOM tree from the given host element to find the nearest ancestor component that provides the requested id,
- * returning its providers object.
- * Results are cached per host element to optimize repeated lookups,
- * which is common when multiple properties or effects are injected from the same ancestor.
- * If no matching provider is found, returns undefined (or throws in dev mode with a helpful message).
- */
-export function walkComponentProviders(id: string, host: Element): unknown {
+export function walkComponentScope(id: string, host: Element): unknown {
   // Check per-element cache first
   const cache = componentTable.get(host)
   if (cache && cache.has(id)) {
@@ -284,10 +233,10 @@ export function walkComponentProviders(id: string, host: Element): unknown {
       if (path) {
         path.push(instance.owner.name)
       }
-      // Match by component NAME — reg.components.app returns the providers of
+      // Match by component NAME — reg.components.app returns the scope of
       // the ancestor component registered as "app", not a provider key named "app"
       if (instance.owner.name === id) {
-        const value = instance.owner.providers
+        const value = instance.owner.scope
         // Cache result
         const c = componentTable.get(host) ?? new Map<string, unknown>()
         c.set(id, value)
@@ -345,8 +294,8 @@ export function init(rootNode: Document | Element = document): void {
 }
 
 export interface Lib {
-  define(name: string, factory: ComponentFactory): void
-  root(name: string, factory: ComponentFactory): void
+  define<Contract = {}>(name: string, factory: (ctx: import('./context').Context<Contract>) => ComponentResult): void
+  root<Contract = {}>(name: string, factory: (ctx: import('./context').Context<Contract>) => ComponentResult): void
   service(name: string, factory: () => Record<string, unknown>): void
   init(rootNode?: Document | Element): void
   each: typeof each
@@ -354,10 +303,10 @@ export interface Lib {
 }
 
 export const lib = {
-  define,
-  root,
-  service,
-  init,
-  each,
-  async: createAsyncSource,
+  define:  /*@__PURE__*/ define,
+  root:    /*@__PURE__*/ root,
+  service: /*@__PURE__*/ service,
+  init:    /*@__PURE__*/ init,
+  each:    /*@__PURE__*/ each,
+  async:   /*@__PURE__*/ createAsyncSource,
 } as unknown as Lib
