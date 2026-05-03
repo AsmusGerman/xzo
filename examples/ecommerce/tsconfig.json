@@ -1,4 +1,16 @@
 {
-  "extends": "../../tsconfig.json",
-  "include": ["./**/*", "../src/jsx.d.ts"]
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "lib": ["ES2020", "DOM"],
+    "jsx": "preserve",
+    "jsxImportSource": "xzo",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["./**/*", "../../src/jsx.d.ts", "../../src/stylis.d.ts"]
 }
