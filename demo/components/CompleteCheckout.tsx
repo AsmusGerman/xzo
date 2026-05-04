@@ -7,6 +7,7 @@ lib.define('checkout-button', (ctx) => {
   };
 
   const checkoutDisabled = computed(() => total.value === 0);
+  const checkoutTest = computed(() => total.value > 0);
   ctx.onMount(() => {
     console.log('[checkout-button] mounted');
   });
@@ -21,6 +22,12 @@ lib.define('checkout-button', (ctx) => {
           >
             Complete checkout
           </button>
+          <XIf when={() => checkoutTest.value}>
+            <div>Not Disabled</div>
+          </XIf>
+          <XElse>
+            <div>Disabled</div>
+          </XElse>
         </XIf>
         <XElse>
           <div>Add items to be able to checkout</div>
