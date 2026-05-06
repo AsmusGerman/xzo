@@ -1,6 +1,5 @@
 import type { ComponentFactory, ComponentResult } from '../types'
-import { each } from './source-each'
-import { createAsyncSource } from './source-async'
+import { each, createAsyncSource } from './directives'
 import { createContext, ensurePropSignal } from './context'
 import {
   createOwner,
@@ -199,7 +198,6 @@ function visitElements(node: Node, visitor: (element: Element) => void): void {
   if (!(node instanceof Element)) {
     return
   }
-
   visitor(node)
 
   for (const child of Array.from(node.children)) {
